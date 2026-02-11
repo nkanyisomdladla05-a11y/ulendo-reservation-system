@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Ulendo Reservation System
 
 A production-ready Django web application for managing lodge reservations with 30 rooms, OCR voucher processing, date overlap prevention, and comprehensive reporting.
@@ -126,3 +127,6 @@ For production deployment:
 ## License
 
 Proprietary - Ulendo Lodge Reservation System
+=======
+# ulendo-reservation-system
+>>>>>>> cb3fce1f4e6291fb36a3e6752e3afcebe52876fe
