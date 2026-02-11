@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+
+{% block title %}New Reservation - Ulendo Reservation System{% endblock %}
+
+{% block page_title %}New Reservation{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Booking Options</h3>
+    </div>
+    <div class="card-body">
+        <div class="nav-tabs">
+            <button type="button" class="tab-pill active" onclick="showTab('manual')">
+                <span class="tab-pill-title">Manual Booking</span>
+                <span class="tab-pill-subtitle">Enter details yourself</span>
+            </button>
+            <button type="button" class="tab-pill" onclick="showTab('voucher')">
+                <span class="tab-pill-title">Upload Voucher</span>
+                <span class="tab-pill-subtitle">Scan and review details</span>
+            </button>
+        </div>
+
+        <!-- Manual Booking Tab -->
+        <div id="manual-tab" class="tab-content">
+            <form method="post" id="manual-form">
+                {% csrf_token %}
+                
+                {% if form.non_field_errors %}
+                <div class="alert alert-error">
+                    {{ form.non_field_errors }}
+                </div>
+                {% endif %}
+                
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Customer Name *</label>
+                        <input type="text" name="customer_name" value="{% if form.customer_name.value %}{{ form.customer_name.value }}{% endif %}" class="form-control" required>
+                        {% if form.customer_name.errors %}
+                        <div class="form-error">{{ form.customer_name.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Voucher Number</label>
+                        <input type="text" name="voucher_number" value="{% if form.voucher_number.value %}{{ form.voucher_number.value }}{% endif %}" class="form-control">
+                        {% if form.voucher_number.errors %}
+                        <div class="form-error">{{ form.voucher_number.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Check-in Date *</label>
+                        <input type="date" name="check_in_date" id="check_in_date" value="{% if check_in %}{{ check_in }}{% elif form.check_in_date.value %}{{ form.check_in_date.value }}{% endif %}" class="form-control" required>
+                        {% if form.check_in_date.errors %}
+                        <div class="form-error">{{ form.check_in_date.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Check-out Date *</label>
+                        <input type="date" name="check_out_date" id="check_out_date" value="{% if check_out %}{{ check_out }}{% elif form.check_out_date.value %}{{ form.check_out_date.value }}{% endif %}" class="form-control" required>
+                        {% if form.check_out_date.errors %}
+                        <div class="form-error">{{ form.check_out_date.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Select Room *</label>
+                    {{ form.room }}
+                    {% if check_in and check_out %}
+                        {% if form.room.field.queryset.exists %}
+                            <div class="alert alert-success" style="margin-top: 0.5rem; padding: 0.75rem;"><strong>{{ form.room.field.queryset.count }} room(s) available! Please select one above.</strong></div>
+                        {% else %}
+                            <div class="alert alert-error" style="margin-top: 0.5rem; padding: 0.75rem;"><strong>No rooms available for these dates. Please choose different dates.</strong></div>
+                        {% endif %}
+                    {% else %}
+                        <div class="form-help">Select check-in and check-out dates, then submit the form to see available rooms.</div>
+                    {% endif %}
+                    {% if form.room.errors %}
+                        <div class="form-error">{{ form.room.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Notes</label>
+                    <textarea name="notes" class="form-control" rows="3">{% if form.notes.value %}{{ form.notes.value }}{% endif %}</textarea>
+                    {% if form.notes.errors %}
+                    <div class="form-error">{{ form.notes.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">Confirm Reservation</button>
+                    <a href="{% url 'reservations:dashboard' %}" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+
+        <!-- Voucher Upload Tab -->
+        <div id="voucher-tab" class="tab-content" style="display: none;">
+            <form method="post" action="{% url 'vouchers:upload_voucher' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label class="form-label">Upload Voucher Image</label>
+                    <input type="file" name="voucher_file" accept="image/*,application/pdf,.pdf" class="form-control" required>
+                    <div class="form-help">Supported formats: JPG, PNG, PDF</div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">Upload & Extract</button>
+                    <a href="{% url 'reservations:dashboard' %}" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function showTab(tabName) {
+    // Hide all tabs
+    document.getElementById('manual-tab').style.display = 'none';
+    document.getElementById('voucher-tab').style.display = 'none';
+    
+    // Remove active class from all tab buttons
+    document.querySelectorAll('.tab-pill').forEach(btn => btn.classList.remove('active'));
+    
+    // Show selected tab and activate corresponding pill
+    if (tabName === 'manual') {
+        document.getElementById('manual-tab').style.display = 'block';
+        document.querySelector('.tab-pill:nth-child(1)').classList.add('active');
+    } else {
+        document.getElementById('voucher-tab').style.display = 'block';
+        document.querySelector('.tab-pill:nth-child(2)').classList.add('active');
+    }
+}
+
+// Simple client-side validation (don't block submission, let server handle it)
+document.getElementById('manual-form').addEventListener('submit', function(e) {
+    const checkIn = document.getElementById('check_in_date').value;
+    const checkOut = document.getElementById('check_out_date').value;
+    
+    // Just warn, don't prevent - let server validate
+    if (!checkIn || !checkOut) {
+        // Server will handle this
+        return true;
+    }
+    
+    if (checkOut <= checkIn) {
+        // Server will handle this
+        return true;
+    }
+    
+    return true;
+});
+</script>
+{% endblock %}

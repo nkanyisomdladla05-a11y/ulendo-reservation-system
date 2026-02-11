@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Ulendo Reservation System{% endblock %}
+
+{% block page_title %}Dashboard{% endblock %}
+
+{% block header_actions %}
+    {% load static %}
+    <img src="{% static 'logo.png' %}" alt="Ulendo Logo" style="max-width: 80px; max-height: 80px;">
+{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Rooms</div>
+        <div class="stat-value">{{ total_rooms }}</div>
+    </div>
+    <div class="stat-card success">
+        <div class="stat-label">Available Today</div>
+        <div class="stat-value">{{ available_count }}</div>
+    </div>
+    <div class="stat-card error">
+        <div class="stat-label">Occupied</div>
+        <div class="stat-value">{{ booked_count }}</div>
+    </div>
+    <div class="stat-card info">
+        <div class="stat-label">Occupancy Rate</div>
+        <div class="stat-value">{{ occupancy_rate }}%</div>
+    </div>
+</div>
+
+<div class="grid grid-2">
+    <!-- Today's Check-ins -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Today's Check-ins</h3>
+            <span class="badge badge-info">{{ check_ins|length }}</span>
+        </div>
+        <div class="card-body">
+            {% if check_ins %}
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Room</th>
+                                <th>Customer</th>
+                                <th>Check-out</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for reservation in check_ins %}
+                            <tr>
+                                <td><strong>Room {{ reservation.room.room_number }}</strong></td>
+                                <td>{{ reservation.customer_name }}</td>
+                                <td>{{ reservation.check_out_date|date:"M d, Y" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                    No check-ins scheduled for today.
+                </p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Today's Check-outs -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Today's Check-outs</h3>
+            <span class="badge badge-warning">{{ check_outs|length }}</span>
+        </div>
+        <div class="card-body">
+            {% if check_outs %}
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Room</th>
+                                <th>Customer</th>
+                                <th>Check-in</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for reservation in check_outs %}
+                            <tr>
+                                <td><strong>Room {{ reservation.room.room_number }}</strong></td>
+                                <td>{{ reservation.customer_name }}</td>
+                                <td>{{ reservation.check_in_date|date:"M d, Y" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                    No check-outs scheduled for today.
+                </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Quick Actions</h3>
+    </div>
+    <div class="card-body">
+        <div class="d-flex gap-2">
+            <a href="{% url 'reservations:new_reservation' %}" class="btn btn-primary">New Reservation</a>
+            <a href="{% url 'reservations:room_availability' %}" class="btn btn-outline">View Availability</a>
+            <a href="{% url 'reservations:reservation_list' %}" class="btn btn-outline">All Reservations</a>
+            <a href="{% url 'reports:daily_report' %}" class="btn btn-outline">Reports</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

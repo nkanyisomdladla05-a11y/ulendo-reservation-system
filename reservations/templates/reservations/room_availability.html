@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block title %}Room Availability - Ulendo Reservation System{% endblock %}
+
+{% block page_title %}Room Availability{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Filter by Date Range</h3>
+    </div>
+    <div class="card-body">
+        <form method="get" class="d-flex gap-2 align-center">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Start Date</label>
+                <input type="date" name="start_date" value="{{ start_date|date:'Y-m-d' }}" class="form-control">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">End Date</label>
+                <input type="date" name="end_date" value="{{ end_date|date:'Y-m-d' }}" class="form-control">
+            </div>
+            <div style="display: flex; align-items: flex-end;">
+                <button type="submit" class="btn btn-primary">Filter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Room Status ({{ start_date|date:"M d" }} - {{ end_date|date:"M d, Y" }})</h3>
+    </div>
+    <div class="card-body">
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Room</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Reservations</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for room_data in rooms %}
+                    <tr>
+                        <td><strong>Room {{ room_data.room.room_number }}</strong></td>
+                        <td>{{ room_data.room.room_type|default:"—" }}</td>
+                        <td>
+                            {% if room_data.status == 'available' %}
+                            <span class="room-status available">Available</span>
+                            {% else %}
+                            <span class="room-status booked">Booked</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% for reservation in room_data.reservations %}
+                            <div style="margin-bottom: 0.5rem;">
+                                <strong>{{ reservation.customer_name }}</strong><br>
+                                <small>{{ reservation.check_in_date|date:"M d" }} - {{ reservation.check_out_date|date:"M d, Y" }}</small>
+                            </div>
+                            {% empty %}
+                            —
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

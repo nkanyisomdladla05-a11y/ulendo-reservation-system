@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Ulendo Reservation System{% endblock %}</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'core/css/style.css' %}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1 class="logo">Ulendo</h1>
+                <p class="logo-subtitle">Reservation System</p>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="{% url 'reservations:dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                    <span class="nav-icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="{% url 'reservations:new_reservation' %}" class="nav-item {% if request.resolver_match.url_name == 'new_reservation' %}active{% endif %}">
+                    <span class="nav-icon">➕</span>
+                    <span>New Reservation</span>
+                </a>
+                <a href="{% url 'reservations:room_availability' %}" class="nav-item {% if request.resolver_match.url_name == 'room_availability' %}active{% endif %}">
+                    <span class="nav-icon">🏨</span>
+                    <span>Room Availability</span>
+                </a>
+                <a href="{% url 'reservations:reservation_list' %}" class="nav-item {% if request.resolver_match.url_name == 'reservation_list' %}active{% endif %}">
+                    <span class="nav-icon">📋</span>
+                    <span>Reservations</span>
+                </a>
+                <a href="{% url 'reports:daily_report' %}" class="nav-item {% if 'reports' in request.resolver_match.app_name %}active{% endif %}">
+                    <span class="nav-icon">📈</span>
+                    <span>Reports</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="{% url 'accounts:logout' %}" class="nav-item logout">
+                    <span class="nav-icon">🚪</span>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="main-header">
+                <h2>{% block page_title %}Dashboard{% endblock %}</h2>
+                <div class="header-actions">
+                    {% block header_actions %}{% endblock %}
+                </div>
+            </header>
+
+            <!-- Messages -->
+            {% if messages %}
+                <div class="messages-container">
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <!-- Page Content -->
+            <div class="content-wrapper">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

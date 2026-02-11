@@ -1,0 +1,91 @@
+Build a web-based Ulendo Reservation System for a lodge with 30 rooms using Django (Python) and SQLite as the database.
+
+The system is for internal use by reception staff to manage room bookings and availability by date range.
+
+Core Requirements:
+
+Manage 30 rooms (room number, optional room type).
+
+Create reservations by assigning available rooms for selected check-in and check-out dates.
+
+Prevent double-booking for overlapping date ranges.
+
+Two booking flows:
+
+Voucher upload with OCR extraction of: customer name, voucher number, check-in date, check-out date.
+
+Manual booking with the same fields (no voucher upload).
+
+OCR results must be editable and reviewable before confirmation.
+
+Show only rooms available for the selected date range when allocating a room.
+
+Store all data in the system’s own SQLite database.
+
+Reporting:
+
+Daily check-ins
+
+Daily check-outs
+
+Occupancy rate
+
+Monthly summary report
+
+Ability to export reports to PDF or Excel
+
+UI / UX Requirements:
+
+Modern, clean, professional web interface.
+
+Card-based dashboard layout.
+
+Room availability grid or calendar view.
+
+Status badges for rooms (Available, Booked, Selected).
+
+Branding / Colors (Ulendo Brand):
+
+Primary (buttons, highlights): #C77A1A (gold/bronze)
+
+Secondary (sidebar, headers): #0F0F0F (charcoal)
+
+Background: #F7F7F7
+
+Text primary: #111111
+
+Success: #1E9E5A
+
+Warning: #F4A261
+
+Error: #D64545
+
+Info: #2F80ED
+
+Technical Guidelines:
+
+Use Django best practices (apps for rooms, reservations, vouchers, reports).
+
+Use Django ORM for all database operations.
+
+Implement proper date overlap logic to prevent double-booking.
+
+Design the code so the database can later be migrated from SQLite to PostgreSQL without changing business logic.
+
+Voucher OCR can use Tesseract or equivalent Python OCR library.
+
+Provide clean separation between backend logic, database models, and frontend templates.
+
+Screens to Implement:
+
+Dashboard (rooms available today, check-ins, check-outs, occupancy)
+
+New Reservation (voucher upload + manual form)
+
+Room Availability (filter by date range)
+
+Reservations List (search by name, voucher number, date)
+
+Reports (daily, monthly, exportable)
+
+The system should be production-usable for a real lodge reception desk, not just a demo CRUD app.

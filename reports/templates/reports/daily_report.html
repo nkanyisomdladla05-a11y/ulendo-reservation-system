@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+
+{% block title %}Reports - Ulendo Reservation System{% endblock %}
+
+{% block page_title %}Reports{% endblock %}
+
+{% block header_actions %}
+<div class="d-flex gap-2">
+    <a href="?mode={{ mode }}{% if mode == 'custom' %}&start_date={{ start_date|date:'Y-m-d' }}&end_date={{ end_date|date:'Y-m-d' }}{% else %}&date={{ anchor_date|date:'Y-m-d' }}{% endif %}&export=pdf"
+       class="btn btn-sm btn-danger">Export PDF</a>
+    <a href="?mode={{ mode }}{% if mode == 'custom' %}&start_date={{ start_date|date:'Y-m-d' }}&end_date={{ end_date|date:'Y-m-d' }}{% else %}&date={{ anchor_date|date:'Y-m-d' }}{% endif %}&export=excel"
+       class="btn btn-sm btn-success">Export Excel</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Filters</h3>
+    </div>
+    <div class="card-body">
+        <form method="get" class="d-flex gap-2 align-center wrap">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="mode" class="form-label">Type</label>
+                <select name="mode" id="mode" class="form-control">
+                    <option value="daily" {% if mode == 'daily' %}selected{% endif %}>Daily</option>
+                    <option value="weekly" {% if mode == 'weekly' %}selected{% endif %}>Weekly</option>
+                    <option value="monthly" {% if mode == 'monthly' %}selected{% endif %}>Monthly</option>
+                    <option value="custom" {% if mode == 'custom' %}selected{% endif %}>Custom</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="date" class="form-label">Date</label>
+                <input type="date" id="date" name="date" value="{{ anchor_date|date:'Y-m-d' }}" class="form-control">
+            </div>
+            {% if mode == 'custom' %}
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="start_date" class="form-label">Start date</label>
+                <input type="date" id="start_date" name="start_date" value="{{ start_date|date:'Y-m-d' }}" class="form-control">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="end_date" class="form-label">End date</label>
+                <input type="date" id="end_date" name="end_date" value="{{ end_date|date:'Y-m-d' }}" class="form-control">
+            </div>
+            {% endif %}
+            <button type="submit" class="btn btn-primary" style="align-self: flex-end;">View Report</button>
+        </form>
+    </div>
+</div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Check-ins ({{ date_label }})</h3>
+            <span class="badge badge-info">{{ check_ins|length }}</span>
+        </div>
+        <div class="card-body">
+            {% if check_ins %}
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Room</th>
+                            <th>Customer</th>
+                            <th>Check-out</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for reservation in check_ins %}
+                        <tr>
+                            <td><strong>Room {{ reservation.room.room_number }}</strong></td>
+                            <td>{{ reservation.customer_name }}</td>
+                            <td>{{ reservation.check_out_date|date:"M d, Y" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p style="text-align: center; padding: 2rem; color: var(--text-secondary);">No check-ins scheduled.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Check-outs ({{ date_label }})</h3>
+            <span class="badge badge-warning">{{ check_outs|length }}</span>
+        </div>
+        <div class="card-body">
+            {% if check_outs %}
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Room</th>
+                            <th>Customer</th>
+                            <th>Check-in</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for reservation in check_outs %}
+                        <tr>
+                            <td><strong>Room {{ reservation.room.room_number }}</strong></td>
+                            <td>{{ reservation.customer_name }}</td>
+                            <td>{{ reservation.check_in_date|date:"M d, Y" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p style="text-align: center; padding: 2rem; color: var(--text-secondary);">No check-outs scheduled.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Occupancy Summary</h3>
+    </div>
+    <div class="card-body">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Rooms</div>
+                <div class="stat-value">{{ total_rooms }}</div>
+            </div>
+            <div class="stat-card error">
+                <div class="stat-label">Booked</div>
+                <div class="stat-value">{{ booked_rooms }}</div>
+            </div>
+            <div class="stat-card info">
+                <div class="stat-label">Occupancy Rate</div>
+                <div class="stat-value">{{ occupancy_rate }}%</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
