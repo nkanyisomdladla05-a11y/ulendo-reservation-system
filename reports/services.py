@@ -17,30 +17,78 @@ def generate_pdf_report(report_type, report_date, data):
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="{report_type}_report_{report_date}.pdf"'
     
-    doc = SimpleDocTemplate(response, pagesize=letter)
+    doc = SimpleDocTemplate(
+        response,
+        pagesize=letter,
+        leftMargin=0.75*inch,
+        rightMargin=0.75*inch,
+        topMargin=0.15*inch,
+        bottomMargin=0.75*inch,
+    )
     elements = []
     styles = getSampleStyleSheet()
 
-    # Optional logo + brand header
+    # Header: logo + contact info, top center
+    contact_lines = [
+        '<font color="#D4AF37" size="16">★ ★ ★ ★</font>',
+        '<b><font size="18">Ulendo Lodge & Apartments</font></b>',
+        '<font size="14" color="#444444">10 Sinclair Road, Lambton, Germiston, 1401</font>',
+        '<font size="13" color="#555555">Tel: 067 623 7170 &nbsp;&nbsp; Tel: 010 824 4595</font>',
+        '<font size="13" color="#555555">Email: info@ulendolodge.com</font>',
+        '<font size="13" color="#666666">Reg Nr. 2016/078946/07</font>',
+    ]
+    contact_text = '<br/>'.join(contact_lines)
+    contact_style = ParagraphStyle(
+        'Contact',
+        parent=styles['Normal'],
+        fontSize=14,
+        textColor=colors.HexColor('#333333'),
+        alignment=1,  # TA_CENTER
+        leftIndent=0,
+        rightIndent=0,
+        spaceBefore=0,
+        spaceAfter=2,
+        leading=19,
+    )
     logo_path = os.path.join(settings.BASE_DIR, 'assets', 'logo.png')
+    logo_img = None
     if os.path.exists(logo_path):
         try:
-            logo = Image(logo_path, width=1.0 * inch, height=1.0 * inch)
-            logo.hAlign = 'LEFT'
-            elements.append(logo)
-            elements.append(Spacer(1, 0.15 * inch))
+            logo_img = Image(logo_path, width=3.0 * inch, height=3.0 * inch)
+            logo_img.hAlign = 'CENTER'
         except Exception:
-            # If logo fails to load, continue without breaking the report
             pass
+    contact_para = Paragraph(contact_text, contact_style)
+    if logo_img:
+        header_data = [[logo_img], [Spacer(1, 0.08*inch)], [contact_para]]
+        header_table = Table(header_data, colWidths=[5.5*inch])
+        header_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ]))
+    else:
+        header_data = [[contact_para]]
+        header_table = Table(header_data, colWidths=[5.5*inch])
+        header_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ]))
+    elements.append(header_table)
+    elements.append(Spacer(1, 0.25 * inch))
 
-    brand_style = ParagraphStyle(
-        'Brand',
-        parent=styles['Normal'],
-        fontSize=10,
-        textColor=colors.HexColor('#555555'),
-        spaceAfter=4,
-    )
-    elements.append(Paragraph('Ulendo Reservation System', brand_style))
+    # Thin divider line
+    line_table = Table([['']], colWidths=[6.5*inch])
+    line_table.setStyle(TableStyle([
+        ('LINEBELOW', (0, 0), (-1, 0), 0.5, colors.HexColor('#DDDDDD')),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    elements.append(line_table)
+    elements.append(Spacer(1, 0.2 * inch))
 
     # Title
     title_style = ParagraphStyle(
@@ -89,41 +137,28 @@ def generate_pdf_report(report_type, report_date, data):
         elements.append(Paragraph(f'<b>Period:</b> {range_label}', styles['Normal']))
         elements.append(Spacer(1, 0.2*inch))
         
-        # Check-ins table
-        if data['check_ins']:
-            elements.append(Paragraph('<b>Check-ins:</b>', styles['Heading2']))
-            check_in_data = [['Room', 'Customer', 'Check-out']]
-            for reservation in data['check_ins']:
-                check_in_data.append([
+        # Single Booking Information table (combines check-ins and check-outs, deduplicated)
+        seen_ids = set()
+        all_reservations = []
+        for r in list(data['check_ins']) + list(data['check_outs']):
+            if r.id not in seen_ids:
+                seen_ids.add(r.id)
+                all_reservations.append(r)
+        all_reservations.sort(key=lambda r: (r.room.room_number, r.check_in_date))
+
+        if all_reservations:
+            elements.append(Paragraph('<b>Booking Information</b>', styles['Heading2']))
+            booking_data = [['Room', 'Voucher', 'Customer', 'Check-in', 'Check-out']]
+            for reservation in all_reservations:
+                booking_data.append([
                     f"Room {reservation.room.room_number}",
+                    reservation.voucher_number or '-',
                     reservation.customer_name,
+                    reservation.check_in_date.strftime('%Y-%m-%d'),
                     reservation.check_out_date.strftime('%Y-%m-%d')
                 ])
-            table = Table(check_in_data)
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0F0F0F')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 12),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black)
-            ]))
-            elements.append(table)
-            elements.append(Spacer(1, 0.3*inch))
-        
-        # Check-outs table
-        if data['check_outs']:
-            elements.append(Paragraph('<b>Check-outs:</b>', styles['Heading2']))
-            check_out_data = [['Room', 'Customer', 'Check-in']]
-            for reservation in data['check_outs']:
-                check_out_data.append([
-                    f"Room {reservation.room.room_number}",
-                    reservation.customer_name,
-                    reservation.check_in_date.strftime('%Y-%m-%d')
-                ])
-            table = Table(check_out_data)
+            col_widths = [1.2*inch, 1.8*inch, 2.4*inch, 1.4*inch, 1.4*inch]
+            table = Table(booking_data, colWidths=col_widths)
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0F0F0F')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -175,6 +210,33 @@ def generate_pdf_report(report_type, report_date, data):
             ('GRID', (0, 0), (-1, -1), 1, colors.black)
         ]))
         elements.append(table)
+
+        # Reservations detail table
+        if data.get('reservations'):
+            elements.append(Spacer(1, 0.2*inch))
+            elements.append(Paragraph('<b>Booking Information</b>', styles['Heading2']))
+            reserv_data = [['Room', 'Voucher', 'Customer', 'Check-in', 'Check-out']]
+            for r in data['reservations']:
+                reserv_data.append([
+                    f"Room {r.room.room_number}",
+                    r.voucher_number or '-',
+                    r.customer_name,
+                    r.check_in_date.strftime('%Y-%m-%d'),
+                    r.check_out_date.strftime('%Y-%m-%d')
+                ])
+            col_widths = [1.2*inch, 1.8*inch, 2.4*inch, 1.4*inch, 1.4*inch]
+            table = Table(reserv_data, colWidths=col_widths)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0F0F0F')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            elements.append(table)
     
     doc.build(elements)
     return response
@@ -203,7 +265,7 @@ def generate_excel_report(report_type, report_date, data):
         ws[f'A{row}'].font = Font(bold=True, size=12)
         row += 1
         
-        headers = ['Room', 'Customer', 'Check-out']
+        headers = ['Room', 'Voucher', 'Customer', 'Check-in', 'Check-out']
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=row, column=col)
             cell.value = header
@@ -214,8 +276,10 @@ def generate_excel_report(report_type, report_date, data):
         row += 1
         for reservation in data['check_ins']:
             ws.cell(row=row, column=1, value=f"Room {reservation.room.room_number}")
-            ws.cell(row=row, column=2, value=reservation.customer_name)
-            ws.cell(row=row, column=3, value=reservation.check_out_date.strftime('%Y-%m-%d'))
+            ws.cell(row=row, column=2, value=reservation.voucher_number or '-')
+            ws.cell(row=row, column=3, value=reservation.customer_name)
+            ws.cell(row=row, column=4, value=reservation.check_in_date.strftime('%Y-%m-%d'))
+            ws.cell(row=row, column=5, value=reservation.check_out_date.strftime('%Y-%m-%d'))
             row += 1
         
         row += 2
@@ -225,7 +289,7 @@ def generate_excel_report(report_type, report_date, data):
         ws[f'A{row}'].font = Font(bold=True, size=12)
         row += 1
         
-        headers = ['Room', 'Customer', 'Check-in']
+        headers = ['Room', 'Voucher', 'Customer', 'Check-in', 'Check-out']
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=row, column=col)
             cell.value = header
@@ -236,8 +300,10 @@ def generate_excel_report(report_type, report_date, data):
         row += 1
         for reservation in data['check_outs']:
             ws.cell(row=row, column=1, value=f"Room {reservation.room.room_number}")
-            ws.cell(row=row, column=2, value=reservation.customer_name)
-            ws.cell(row=row, column=3, value=reservation.check_in_date.strftime('%Y-%m-%d'))
+            ws.cell(row=row, column=2, value=reservation.voucher_number or '-')
+            ws.cell(row=row, column=3, value=reservation.customer_name)
+            ws.cell(row=row, column=4, value=reservation.check_in_date.strftime('%Y-%m-%d'))
+            ws.cell(row=row, column=5, value=reservation.check_out_date.strftime('%Y-%m-%d'))
             row += 1
         
         row += 2
@@ -274,6 +340,27 @@ def generate_excel_report(report_type, report_date, data):
             ws.cell(row=row, column=1, value=item[0]).font = Font(bold=True)
             ws.cell(row=row, column=2, value=item[1])
             row += 1
+
+        # Reservations detail table
+        if data.get('reservations'):
+            row += 2
+            ws.cell(row=row, column=1, value='Reservations').font = Font(bold=True, size=12)
+            row += 1
+            headers = ['Room', 'Voucher', 'Customer', 'Check-in', 'Check-out']
+            for col, header in enumerate(headers, 1):
+                cell = ws.cell(row=row, column=col)
+                cell.value = header
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal='center')
+            row += 1
+            for r in data['reservations']:
+                ws.cell(row=row, column=1, value=f"Room {r.room.room_number}")
+                ws.cell(row=row, column=2, value=r.voucher_number or '-')
+                ws.cell(row=row, column=3, value=r.customer_name)
+                ws.cell(row=row, column=4, value=r.check_in_date.strftime('%Y-%m-%d'))
+                ws.cell(row=row, column=5, value=r.check_out_date.strftime('%Y-%m-%d'))
+                row += 1
     
     # Auto-adjust column widths
     for column in ws.columns:
