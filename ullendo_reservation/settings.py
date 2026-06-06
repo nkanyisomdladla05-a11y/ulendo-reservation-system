@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'reports',
     'accounts',
     'core',
+    'backtrack',
 ]
 
 MIDDLEWARE = [

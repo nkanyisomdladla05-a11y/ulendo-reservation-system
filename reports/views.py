@@ -1,11 +1,44 @@
+import re
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from datetime import date, datetime, timedelta
+from dateutil import parser as date_parser
 from django.db.models import Count, Q
 from reservations.models import Reservation
 from rooms.models import Room
 from .services import generate_pdf_report, generate_excel_report
+
+
+def parse_date_safe(date_str):
+    """Parse date string safely, handling YYYY/MM/DD and YY/MM/DD formats correctly."""
+    if not date_str:
+        return None
+    date_str = date_str.strip()
+    ymd = re.match(r'(\d{4})[/-](\d{1,2})[/-](\d{1,2})', date_str)
+    if ymd:
+        try:
+            return date(int(ymd.group(1)), int(ymd.group(2)), int(ymd.group(3)))
+        except ValueError:
+            return None
+    dmy = re.match(r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})', date_str)
+    if dmy:
+        try:
+            return date(int(dmy.group(3)), int(dmy.group(2)), int(dmy.group(1)))
+        except ValueError:
+            return None
+    ymd2 = re.match(r'(\d{2})[/-](\d{1,2})[/-](\d{2})$', date_str)
+    if ymd2:
+        try:
+            year = int(ymd2.group(1))
+            year = year + 2000 if year < 100 else year
+            return date(year, int(ymd2.group(2)), int(ymd2.group(3)))
+        except ValueError:
+            return None
+    try:
+        return date_parser.parse(date_str, dayfirst=True).date()
+    except ValueError:
+        return None
 
 
 @login_required
@@ -22,9 +55,9 @@ def daily_report(request):
     mode = request.GET.get('mode', 'daily')
 
     # Anchor date (used for daily/weekly/monthly and as fallback for custom)
-    date_str = request.GET.get('date', date.today().strftime('%Y-%m-%d'))
+    date_str = request.GET.get('date', date.today().strftime('%Y/%m/%d'))
     try:
-        anchor_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        anchor_date = parse_date_safe(date_str) or date.today()
     except ValueError:
         anchor_date = date.today()
 
@@ -45,11 +78,11 @@ def daily_report(request):
         start_str = request.GET.get('start_date')
         end_str = request.GET.get('end_date')
         try:
-            start_date = datetime.strptime(start_str, '%Y-%m-%d').date() if start_str else anchor_date
+            start_date = parse_date_safe(start_str) if start_str else anchor_date
         except ValueError:
             start_date = anchor_date
         try:
-            end_date = datetime.strptime(end_str, '%Y-%m-%d').date() if end_str else start_date
+            end_date = parse_date_safe(end_str) if end_str else start_date
         except ValueError:
             end_date = start_date
         # Ensure end_date is not before start_date
@@ -85,9 +118,9 @@ def daily_report(request):
 
     # Human‑readable date label for headings
     if start_date == end_date:
-        date_label = start_date.strftime('%b %d, %Y')
+        date_label = start_date.strftime('%Y/%m/%d')
     else:
-        date_label = f"{start_date.strftime('%b %d, %Y')} – {end_date.strftime('%b %d, %Y')}"
+        date_label = f"{start_date.strftime('%Y/%m/%d')} – {end_date.strftime('%Y/%m/%d')}"
 
     export_format = request.GET.get('export')
     # For exports we keep using the daily layout and pass a string label
@@ -125,10 +158,13 @@ def daily_report(request):
 @login_required
 def monthly_report(request):
     """Monthly summary report."""
-    month = request.GET.get('month', date.today().strftime('%Y-%m'))
+    month = request.GET.get('month', date.today().strftime('%y/%m'))
     
     try:
-        year, month_num = map(int, month.split('-'))
+        year, month_num = map(int, month.split('/'))
+        # Handle 2-digit year: flatpickr sends 2-digit, assume 2000s
+        if year < 100:
+            year += 2000
         start_date = date(year, month_num, 1)
         if month_num == 12:
             end_date = date(year + 1, 1, 1)
@@ -207,10 +243,10 @@ def monthly_report(request):
 @login_required
 def occupancy_report(request):
     """Occupancy rate report for a specific date."""
-    report_date = request.GET.get('date', date.today().strftime('%Y-%m-%d'))
-    
+    report_date = request.GET.get('date', date.today().strftime('%Y/%m/%d'))
+
     try:
-        report_date = datetime.strptime(report_date, '%Y-%m-%d').date()
+        report_date = parse_date_safe(report_date) or date.today()
     except ValueError:
         report_date = date.today()
     

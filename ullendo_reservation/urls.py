@@ -25,6 +25,7 @@ urlpatterns = [
     path('', include('reservations.urls')),
     path('vouchers/', include('vouchers.urls')),
     path('reports/', include('reports.urls')),
+    path('backtrack/', include('backtrack.urls')),
 ]
 
 # Serve media files in development

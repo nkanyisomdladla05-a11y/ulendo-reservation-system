@@ -43,28 +43,26 @@
             <div class="grid grid-2">
                 <div class="form-group">
                     <label class="form-label">Check-in Date *</label>
-                    <input type="date" name="check_in_date" value="{{ voucher.check_in_date|date:'Y-m-d' }}" class="form-control" required>
+                    <input type="text" name="check_in_date" value="{{ voucher.extracted_data.check_in_raw|default:'' }}" class="form-control date-picker" placeholder="yyyy/mm/dd" required>
                 </div>
-                
+
                 <div class="form-group">
                     <label class="form-label">Check-out Date *</label>
-                    <input type="date" name="check_out_date" value="{{ voucher.check_out_date|date:'Y-m-d' }}" class="form-control" required>
+                    <input type="text" name="check_out_date" value="{{ voucher.extracted_data.check_out_raw|default:'' }}" class="form-control date-picker" placeholder="yyyy/mm/dd" required>
                 </div>
             </div>
 
             {% if voucher.check_in_date and voucher.check_out_date %}
             <div class="form-group">
                 <label class="form-label">Select Room *</label>
-                <select name="room" class="form-control" required>
-                    <option value="">-- Select a room --</option>
-                    {% for room in available_rooms %}
-                    <option value="{{ room.id }}">Room {{ room.room_number }}{% if room.room_type %} ({{ room.room_type }}){% endif %}</option>
-                    {% endfor %}
-                </select>
-                {% if available_rooms|length == 0 %}
-                <div class="form-help" style="color: var(--error);">No rooms available for the selected dates.</div>
+                {{ form.room }}
+                {% if form.room.field.queryset.exists %}
+                    <div class="alert alert-success" style="margin-top: 0.5rem; padding: 0.75rem;"><strong>{{ form.room.field.queryset.count }} room(s) available! Please select one above.</strong></div>
                 {% else %}
-                <div class="form-help">{{ available_rooms|length }} room(s) available for these dates.</div>
+                    <div class="alert alert-error" style="margin-top: 0.5rem; padding: 0.75rem;"><strong>No rooms available for these dates. Please choose different dates.</strong></div>
+                {% endif %}
+                {% if form.room.errors %}
+                    <div class="form-error">{{ form.room.errors }}</div>
                 {% endif %}
             </div>
             {% else %}

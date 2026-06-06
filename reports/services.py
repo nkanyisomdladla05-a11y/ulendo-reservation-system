@@ -112,7 +112,7 @@ def generate_pdf_report(report_type, report_date, data):
     elif report_type == 'monthly':
         # Monthly exports still use the month as the title date
         if isinstance(report_date, date):
-            title_text = f'Monthly Report - {report_date.strftime("%B %Y")}'
+            title_text = f'Monthly Report - {report_date.strftime("%y/%m")}'
         else:
             title_text = f'Monthly Report - {report_date}'
     else:
@@ -154,8 +154,8 @@ def generate_pdf_report(report_type, report_date, data):
                     f"Room {reservation.room.room_number}",
                     reservation.voucher_number or '-',
                     reservation.customer_name,
-                    reservation.check_in_date.strftime('%Y-%m-%d'),
-                    reservation.check_out_date.strftime('%Y-%m-%d')
+                    reservation.check_in_date.strftime('%Y/%m/%d'),
+                    reservation.check_out_date.strftime('%Y/%m/%d')
                 ])
             col_widths = [1.2*inch, 1.8*inch, 2.4*inch, 1.4*inch, 1.4*inch]
             table = Table(booking_data, colWidths=col_widths)
@@ -191,7 +191,7 @@ def generate_pdf_report(report_type, report_date, data):
     
     elif report_type == 'monthly':
         # Monthly report content
-        elements.append(Paragraph(f'<b>Month:</b> {report_date.strftime("%B %Y")}', styles['Normal']))
+        elements.append(Paragraph(f'<b>Month:</b> {report_date.strftime("%y/%m")}', styles['Normal']))
         elements.append(Spacer(1, 0.2*inch))
         
         # Summary
@@ -221,8 +221,8 @@ def generate_pdf_report(report_type, report_date, data):
                     f"Room {r.room.room_number}",
                     r.voucher_number or '-',
                     r.customer_name,
-                    r.check_in_date.strftime('%Y-%m-%d'),
-                    r.check_out_date.strftime('%Y-%m-%d')
+                    r.check_in_date.strftime('%Y/%m/%d'),
+                    r.check_out_date.strftime('%Y/%m/%d')
                 ])
             col_widths = [1.2*inch, 1.8*inch, 2.4*inch, 1.4*inch, 1.4*inch]
             table = Table(reserv_data, colWidths=col_widths)
@@ -278,17 +278,17 @@ def generate_excel_report(report_type, report_date, data):
             ws.cell(row=row, column=1, value=f"Room {reservation.room.room_number}")
             ws.cell(row=row, column=2, value=reservation.voucher_number or '-')
             ws.cell(row=row, column=3, value=reservation.customer_name)
-            ws.cell(row=row, column=4, value=reservation.check_in_date.strftime('%Y-%m-%d'))
-            ws.cell(row=row, column=5, value=reservation.check_out_date.strftime('%Y-%m-%d'))
+            ws.cell(row=row, column=4, value=reservation.check_in_date.strftime('%Y/%m/%d'))
+            ws.cell(row=row, column=5, value=reservation.check_out_date.strftime('%Y/%m/%d'))
             row += 1
-        
+
         row += 2
-        
+
         # Check-outs
         ws[f'A{row}'] = 'Check-outs'
         ws[f'A{row}'].font = Font(bold=True, size=12)
         row += 1
-        
+
         headers = ['Room', 'Voucher', 'Customer', 'Check-in', 'Check-out']
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=row, column=col)
@@ -296,14 +296,14 @@ def generate_excel_report(report_type, report_date, data):
             cell.fill = header_fill
             cell.font = header_font
             cell.alignment = Alignment(horizontal='center')
-        
+
         row += 1
         for reservation in data['check_outs']:
             ws.cell(row=row, column=1, value=f"Room {reservation.room.room_number}")
             ws.cell(row=row, column=2, value=reservation.voucher_number or '-')
             ws.cell(row=row, column=3, value=reservation.customer_name)
-            ws.cell(row=row, column=4, value=reservation.check_in_date.strftime('%Y-%m-%d'))
-            ws.cell(row=row, column=5, value=reservation.check_out_date.strftime('%Y-%m-%d'))
+            ws.cell(row=row, column=4, value=reservation.check_in_date.strftime('%Y/%m/%d'))
+            ws.cell(row=row, column=5, value=reservation.check_out_date.strftime('%Y/%m/%d'))
             row += 1
         
         row += 2
@@ -358,8 +358,8 @@ def generate_excel_report(report_type, report_date, data):
                 ws.cell(row=row, column=1, value=f"Room {r.room.room_number}")
                 ws.cell(row=row, column=2, value=r.voucher_number or '-')
                 ws.cell(row=row, column=3, value=r.customer_name)
-                ws.cell(row=row, column=4, value=r.check_in_date.strftime('%Y-%m-%d'))
-                ws.cell(row=row, column=5, value=r.check_out_date.strftime('%Y-%m-%d'))
+                ws.cell(row=row, column=4, value=r.check_in_date.strftime('%Y/%m/%d'))
+                ws.cell(row=row, column=5, value=r.check_out_date.strftime('%Y/%m/%d'))
                 row += 1
     
     # Auto-adjust column widths

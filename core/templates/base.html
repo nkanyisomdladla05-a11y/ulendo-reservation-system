@@ -6,6 +6,7 @@
     <title>{% block title %}Ulendo Reservation System{% endblock %}</title>
     {% load static %}
     <link rel="stylesheet" href="{% static 'core/css/style.css' %}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -32,6 +33,10 @@
                 <a href="{% url 'reservations:reservation_list' %}" class="nav-item {% if request.resolver_match.url_name == 'reservation_list' %}active{% endif %}">
                     <span class="nav-icon">📋</span>
                     <span>Reservations</span>
+                </a>
+                <a href="{% url 'backtrack:dashboard' %}" class="nav-item {% if 'backtrack' in request.resolver_match.app_name %}active{% endif %}">
+                    <span class="nav-icon">🔄</span>
+                    <span>Backtrack & Report</span>
                 </a>
                 <a href="{% url 'reports:daily_report' %}" class="nav-item {% if 'reports' in request.resolver_match.app_name %}active{% endif %}">
                     <span class="nav-icon">📈</span>
@@ -73,6 +78,15 @@
         </main>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            flatpickr('.date-picker', {
+                dateFormat: 'Y/m/d',
+                allowInput: true,
+            });
+        });
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

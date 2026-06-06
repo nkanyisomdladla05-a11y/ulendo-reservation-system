@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block title %}Backtrack Dashboard - Ulendo Reservation System{% endblock %}
+
+{% block page_title %}Backtrack Dashboard{% endblock %}
+
+{% block content %}
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Records</div>
+        <div class="stat-value">{{ total }}</div>
+    </div>
+    <div class="stat-card success">
+        <div class="stat-label">Confirmed</div>
+        <div class="stat-value">{{ confirmed }}</div>
+    </div>
+    <div class="stat-card error">
+        <div class="stat-label">Cancelled</div>
+        <div class="stat-value">{{ cancelled }}</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Recent Backtrack Reservations</h3>
+    </div>
+    <div class="card-body">
+        {% if recent %}
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Customer</th>
+                            <th>Room</th>
+                            <th>Check-in</th>
+                            <th>Check-out</th>
+                            <th>Voucher</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for res in recent %}
+                        <tr>
+                            <td><strong>{{ res.customer_name }}</strong></td>
+                            <td>Room {{ res.room_number }}</td>
+                            <td>{{ res.check_in_date|date:"y/m/d" }}</td>
+                            <td>{{ res.check_out_date|date:"y/m/d" }}</td>
+                            <td>{{ res.voucher_number|default:"—" }}</td>
+                            <td>
+                                {% if res.status == 'confirmed' %}
+                                <span class="badge badge-success">Confirmed</span>
+                                {% else %}
+                                <span class="badge badge-error">Cancelled</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form method="post" action="{% url 'backtrack:delete_from_dashboard' res.pk %}" style="display:inline;" onsubmit="return confirm('Delete this backtrack record?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                No backtrack reservations yet.
+            </p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Quick Actions</h3>
+    </div>
+    <div class="card-body">
+        <div class="d-flex gap-2">
+            <a href="{% url 'backtrack:new_backtrack' %}" class="btn btn-primary">New Backtrack Reservation</a>
+            <a href="{% url 'backtrack:backtrack_list' %}" class="btn btn-outline">All Backtrack Records</a>
+            <a href="{% url 'backtrack:backtrack_report' %}" class="btn btn-outline">Backtrack Reports</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

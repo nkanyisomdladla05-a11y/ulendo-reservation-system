@@ -52,7 +52,7 @@
                             <tr>
                                 <td><strong>Room {{ reservation.room.room_number }}</strong></td>
                                 <td>{{ reservation.customer_name }}</td>
-                                <td>{{ reservation.check_out_date|date:"M d, Y" }}</td>
+                                <td>{{ reservation.check_out_date|date:"Y/m/d" }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -88,7 +88,7 @@
                             <tr>
                                 <td><strong>Room {{ reservation.room.room_number }}</strong></td>
                                 <td>{{ reservation.customer_name }}</td>
-                                <td>{{ reservation.check_in_date|date:"M d, Y" }}</td>
+                                <td>{{ reservation.check_in_date|date:"Y/m/d" }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

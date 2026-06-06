@@ -2,7 +2,7 @@ import re
 import os
 import pytesseract
 from PIL import Image
-from datetime import datetime
+from datetime import datetime, date
 from dateutil import parser as date_parser
 
 
@@ -158,116 +158,232 @@ def parse_voucher_number(text):
     return ""
 
 
+def _parse_ymd_directly(date_str):
+    """Parse YYYY/MM/DD or YYYY-MM-DD directly as year-month-day."""
+    match = re.match(r'(\d{4})[/-](\d{1,2})[/-](\d{1,2})', date_str)
+    if match:
+        try:
+            year = int(match.group(1))
+            month = int(match.group(2))
+            day = int(match.group(3))
+            return date(year, month, day)
+        except (ValueError, OverflowError):
+            return None
+    return None
+
+
+def _parse_dmy_directly(date_str):
+    """Parse DD/MM/YYYY or DD-MM-YYYY directly as day-month-year."""
+    match = re.match(r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})', date_str)
+    if match:
+        try:
+            day = int(match.group(1))
+            month = int(match.group(2))
+            year = int(match.group(3))
+            return date(year, month, day)
+        except (ValueError, OverflowError):
+            return None
+    return None
+
+
+def _normalize_raw_date(date_obj):
+    """Convert a date object to YYYY/MM/DD string."""
+    if date_obj is None:
+        return None
+    return date_obj.strftime('%Y/%m/%d')
+
+
+def _find_date_near_label(text, label_pattern, start_after_pos=0):
+    """
+    Find a date near a label occurrence in text.
+    Searches from start_after_pos onward.
+    Returns (date_obj, raw_str, match_end_pos) or (None, None, None).
+    """
+    match = re.search(label_pattern, text[start_after_pos:], re.IGNORECASE)
+    if not match:
+        return None, None, None
+
+    abs_match_start = start_after_pos + match.start()
+    abs_match_end = start_after_pos + match.end()
+
+    # Get the line containing the label and the next 2 lines
+    line_start = text.rfind('\n', 0, abs_match_start)
+    if line_start == -1:
+        line_start = 0
+    # Find end of 2nd line after the label
+    search_from = abs_match_end
+    for _ in range(2):
+        nl = text.find('\n', search_from)
+        if nl == -1:
+            search_from = len(text)
+            break
+        search_from = nl + 1
+
+    nearby_text = text[line_start:search_from]
+
+    # Look for YYYY/MM/DD first (most reliable)
+    ymd_match = re.search(r'(\d{4}[/-]\d{1,2}[/-]\d{1,2})', nearby_text)
+    if ymd_match:
+        parsed = _parse_ymd_directly(ymd_match.group(1))
+        if parsed:
+            return parsed, ymd_match.group(1), abs_match_end
+
+    # Look for DD/MM/YYYY
+    dmy_match = re.search(r'(\d{1,2}[/-]\d{1,2}[/-]\d{4})', nearby_text)
+    if dmy_match:
+        parsed = _parse_dmy_directly(dmy_match.group(1))
+        if parsed:
+            return parsed, dmy_match.group(1), abs_match_end
+
+    # Look for text dates
+    text_date_match = re.search(r'(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4})', nearby_text, re.IGNORECASE)
+    if text_date_match:
+        try:
+            parsed = date_parser.parse(text_date_match.group(1), dayfirst=True).date()
+            return parsed, text_date_match.group(1), abs_match_end
+        except:
+            pass
+
+    return None, None, abs_match_end
+
+
 def parse_dates(text):
     """
     Extract check-in and check-out dates from OCR text.
-    Handles multiple date formats.
-    
-    Args:
-        text: OCR extracted text
-    
-    Returns:
-        tuple: (check_in_date, check_out_date) as date objects or (None, None)
+
+    Strategy:
+    1. Phase 1: Search for SPECIFIC labels (check-in, check-out, checkin, checkout)
+    2. Phase 2: Only if Phase 1 fails, search for GENERIC labels (arrival, departure, from, to, etc.)
+    3. For each label, search line-by-line to find the occurrence that has a date nearby
+    4. All raw dates normalized to YYYY/MM/DD format
+
+    This prevents false matches like "TO:" (destination) being confused with "to" (departure date).
     """
-    # Common date patterns
-    date_patterns = [
-        r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}',  # DD/MM/YYYY or MM/DD/YYYY
-        r'\d{4}[/-]\d{1,2}[/-]\d{1,2}',  # YYYY-MM-DD
-        r'\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4}',  # DD Mon YYYY
-    ]
-    
-    dates = []
-    for pattern in date_patterns:
-        matches = re.findall(pattern, text)
-        dates.extend(matches)
-    
-    # Try to parse dates
-    parsed_dates = []
-    for date_str in dates:
-        try:
-            # Try multiple parsing strategies
-            parsed = date_parser.parse(date_str, dayfirst=True, fuzzy=True)
-            parsed_dates.append(parsed.date())
-        except:
-            try:
-                parsed = date_parser.parse(date_str, dayfirst=False, fuzzy=True)
-                parsed_dates.append(parsed.date())
-            except:
-                continue
-    
-    # Look for check-in/check-out keywords
     check_in_date = None
     check_out_date = None
-    
-    # Search for "check in" and "check out" patterns
-    check_in_patterns = [
-        r'(?:check[-\s]?in|arrival|from)[:\s]+(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})',
-        r'(?:check[-\s]?in|arrival|from)[:\s]+(\d{4}[/-]\d{1,2}[/-]\d{1,2})',
-    ]
-    
-    check_out_patterns = [
-        r'(?:check[-\s]?out|departure|to)[:\s]+(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})',
-        r'(?:check[-\s]?out|departure|to)[:\s]+(\d{4}[/-]\d{1,2}[/-]\d{1,2})',
-    ]
-    
-    for pattern in check_in_patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            try:
-                check_in_date = date_parser.parse(match.group(1), dayfirst=True).date()
-                break
-            except:
+    check_in_raw = None
+    check_out_raw = None
+
+    # Phase 1: Specific labels only (unambiguous)
+    specific_checkin = r'(?:check[-\s]?in|checkin)'
+    specific_checkout = r'(?:check[-\s]?out|checkout)'
+
+    # Phase 2: Generic labels (fallback only)
+    generic_checkin = r'(?:arrival|from|start\s*date|arrive)'
+    generic_checkout = r'(?:departure|to|end\s*date|depart)'
+
+    lines = text.split('\n')
+
+    def find_date_for_label(label_pattern, lines, skip_labels=None):
+        """Find a date for a label by scanning all lines. Returns (date, raw) or (None, None)."""
+        for i, line in enumerate(lines):
+            match = re.search(label_pattern, line, re.IGNORECASE)
+            if not match:
                 continue
-    
-    for pattern in check_out_patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            try:
-                check_out_date = date_parser.parse(match.group(1), dayfirst=True).date()
-                break
-            except:
-                continue
-    
-    # If we found dates but no specific labels, assume first is check-in, second is check-out
-    if not check_in_date and len(parsed_dates) >= 1:
-        check_in_date = parsed_dates[0]
-    
-    if not check_out_date and len(parsed_dates) >= 2:
-        check_out_date = parsed_dates[1]
-    elif not check_out_date and len(parsed_dates) == 1:
-        # If only one date found, might be check-in, check-out could be next day or need manual entry
-        pass
-    
-    return check_in_date, check_out_date
+            # Check if this line matches a label we should skip
+            if skip_labels:
+                skip_match = re.search(skip_labels, line, re.IGNORECASE)
+                if skip_match:
+                    continue
+
+            # Look for date on this line (after the label)
+            after_label = line[match.end():].strip()
+            if after_label:
+                ymd = re.search(r'(\d{4}[/-]\d{1,2}[/-]\d{1,2})', after_label)
+                if ymd:
+                    parsed = _parse_ymd_directly(ymd.group(1))
+                    if parsed:
+                        return parsed, ymd.group(1)
+                dmy = re.search(r'(\d{1,2}[/-]\d{1,2}[/-]\d{4})', after_label)
+                if dmy:
+                    parsed = _parse_dmy_directly(dmy.group(1))
+                    if parsed:
+                        return parsed, dmy.group(1)
+
+            # Look for date on the next line
+            if i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                ymd = re.search(r'(\d{4}[/-]\d{1,2}[/-]\d{1,2})', next_line)
+                if ymd:
+                    parsed = _parse_ymd_directly(ymd.group(1))
+                    if parsed:
+                        return parsed, ymd.group(1)
+                dmy = re.search(r'(\d{1,2}[/-]\d{1,2}[/-]\d{4})', next_line)
+                if dmy:
+                    parsed = _parse_dmy_directly(dmy.group(1))
+                    if parsed:
+                        return parsed, dmy.group(1)
+
+        return None, None
+
+    # Phase 1: Specific labels
+    check_in_date, check_in_raw = find_date_for_label(specific_checkin, lines)
+    check_out_date, check_out_raw = find_date_for_label(specific_checkout, lines)
+
+    # Phase 2: Generic labels (only if Phase 1 didn't find both)
+    if not check_in_date:
+        check_in_date, check_in_raw = find_date_for_label(generic_checkin, lines)
+    if not check_out_date:
+        # For generic checkout, skip lines that are actually destination addresses
+        # (lines with "TO:" followed by hotel/address info, not dates)
+        check_out_date, check_out_raw = find_date_for_label(generic_checkout, lines)
+
+    # Fallback: find all YYYY/MM/DD dates in text
+    if not check_in_date or not check_out_date:
+        all_dates = []
+        for m in re.finditer(r'(\d{4}[/-]\d{1,2}[/-]\d{1,2})', text):
+            parsed = _parse_ymd_directly(m.group(1))
+            if parsed:
+                all_dates.append((parsed, m.group(1)))
+
+        if not check_in_date and len(all_dates) >= 1:
+            check_in_date, check_in_raw = all_dates[0]
+        if not check_out_date and len(all_dates) >= 2:
+            check_out_date, check_out_raw = all_dates[1]
+
+    # Normalize raw dates to YYYY/MM/DD
+    if check_in_date and check_in_raw:
+        check_in_raw = _normalize_raw_date(check_in_date)
+    if check_out_date and check_out_raw:
+        check_out_raw = _normalize_raw_date(check_out_date)
+
+    return {
+        'check_in_date': check_in_date,
+        'check_out_date': check_out_date,
+        'check_in_raw': check_in_raw,
+        'check_out_raw': check_out_raw,
+    }
 
 
 def extract_voucher_data(image_path):
     """
     Extract all voucher data from an image.
-    
+
     Args:
         image_path: Path to the voucher image
-    
+
     Returns:
         dict: Dictionary with extracted data:
             - customer_name: str
             - voucher_number: str
             - check_in_date: date or None
             - check_out_date: date or None
-            - raw_text: str (full OCR text)
+            - check_in_raw: str or None
+            - check_out_raw: str or None
+            - raw_text: str
     """
-    # Extract text
     raw_text = extract_text_from_image(image_path)
-    
-    # Parse fields
+
     customer_name = parse_customer_name(raw_text)
     voucher_number = parse_voucher_number(raw_text)
-    check_in_date, check_out_date = parse_dates(raw_text)
-    
+    date_info = parse_dates(raw_text)
+
     return {
         'customer_name': customer_name,
         'voucher_number': voucher_number,
-        'check_in_date': check_in_date,
-        'check_out_date': check_out_date,
+        'check_in_date': date_info['check_in_date'],
+        'check_out_date': date_info['check_out_date'],
+        'check_in_raw': date_info['check_in_raw'],
+        'check_out_raw': date_info['check_out_raw'],
         'raw_text': raw_text,
     }

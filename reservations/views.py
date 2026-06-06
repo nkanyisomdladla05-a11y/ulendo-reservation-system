@@ -1,3 +1,4 @@
+import re
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -5,10 +6,42 @@ from django.core.paginator import Paginator
 from django.db.models import IntegerField
 from django.db.models.functions import Cast
 from datetime import date, datetime, timedelta
+from dateutil import parser as date_parser
 from .models import Reservation
 from .forms import ReservationForm
 from .services import get_available_rooms, create_confirmed_reservation
 from rooms.models import Room
+
+
+def parse_date_safe(date_str):
+    """Parse date string safely, handling YYYY/MM/DD and YY/MM/DD formats correctly."""
+    if not date_str:
+        return None
+    date_str = date_str.strip()
+    ymd = re.match(r'(\d{4})[/-](\d{1,2})[/-](\d{1,2})', date_str)
+    if ymd:
+        try:
+            return date(int(ymd.group(1)), int(ymd.group(2)), int(ymd.group(3)))
+        except ValueError:
+            return None
+    dmy = re.match(r'(\d{1,2})[/-](\d{1,2})[/-](\d{4})', date_str)
+    if dmy:
+        try:
+            return date(int(dmy.group(3)), int(dmy.group(2)), int(dmy.group(1)))
+        except ValueError:
+            return None
+    ymd2 = re.match(r'(\d{2})[/-](\d{1,2})[/-](\d{2})$', date_str)
+    if ymd2:
+        try:
+            year = int(ymd2.group(1))
+            year = year + 2000 if year < 100 else year
+            return date(year, int(ymd2.group(2)), int(ymd2.group(3)))
+        except ValueError:
+            return None
+    try:
+        return date_parser.parse(date_str, dayfirst=True).date()
+    except ValueError:
+        return None
 
 
 @login_required
@@ -30,54 +63,46 @@ def dashboard(request):
 def new_reservation(request):
     """New reservation view - handles both GET and POST requests."""
     if request.method == 'POST':
-        # Handle form submission
         check_in_str = request.POST.get('check_in_date', '').strip()
         check_out_str = request.POST.get('check_out_date', '').strip()
         room_id = request.POST.get('room', '').strip()
-        
-        # Parse dates with explicit error handling
+
         check_in = None
         check_out = None
-        
+
         if check_in_str:
             try:
-                check_in = datetime.strptime(check_in_str, '%Y-%m-%d').date()
+                check_in = parse_date_safe(check_in_str)
             except ValueError:
                 check_in = None
                 messages.error(request, f'Invalid check-in date: {check_in_str}')
-        
+
         if check_out_str:
             try:
-                check_out = datetime.strptime(check_out_str, '%Y-%m-%d').date()
+                check_out = parse_date_safe(check_out_str)
             except ValueError:
                 check_out = None
                 messages.error(request, f'Invalid check-out date: {check_out_str}')
-        
-        # Validate dates are valid and check-out is after check-in
+
         dates_valid = False
         if check_in and check_out:
             if check_out > check_in:
                 dates_valid = True
             else:
                 messages.error(request, 'Check-out date must be after check-in date.')
-        
-        # Create form with POST data and parsed dates
-        # Only pass dates to form if they're valid (form will filter rooms automatically)
+
         if dates_valid:
             form = ReservationForm(request.POST, check_in_date=check_in, check_out_date=check_out)
         else:
-            # Dates invalid or missing - form will show all active rooms
             form = ReservationForm(request.POST)
-        
-        # Get available rooms count for display messages (form already has filtered queryset)
+
         available_rooms_count = 0
         if dates_valid and form.fields['room'].queryset:
             try:
                 available_rooms_count = form.fields['room'].queryset.count()
             except Exception:
                 available_rooms_count = 0
-        
-        # If room is selected, validate and create via shared service (same as voucher booking)
+
         if room_id:
             if form.is_valid():
                 cd = form.cleaned_data
@@ -94,8 +119,7 @@ def new_reservation(request):
                     messages.success(request, f'Reservation confirmed for {reservation.customer_name} in Room {reservation.room.room_number}.')
                     return redirect('reservations:dashboard')
                 messages.error(request, 'Room is no longer available for the selected dates. Please choose another room.')
-        
-        # No room selected or form has errors - show form with available rooms
+
         context = {
             'form': form,
             'available_rooms_count': available_rooms_count,
@@ -103,9 +127,8 @@ def new_reservation(request):
             'check_out': check_out_str,
         }
         return render(request, 'reservations/new_reservation.html', context)
-    
+
     else:
-        # GET request - show empty form
         form = ReservationForm()
         return render(request, 'reservations/new_reservation.html', {
             'form': form,
@@ -117,115 +140,100 @@ def new_reservation(request):
 
 @login_required
 def confirm_reservation(request):
-    """Confirm reservation from manual form or voucher review."""
+    """Confirm reservation from manual form or voucher review.
+    Uses the same create_confirmed_reservation() service as new_reservation
+    to ensure both booking flows share identical logic.
+    """
     if request.method == 'POST':
-        # Get raw POST data first
         check_in_str = request.POST.get('check_in_date', '').strip()
         check_out_str = request.POST.get('check_out_date', '').strip()
         room_id = request.POST.get('room', '').strip()
-        
-        # Debug: Store POST data for template debugging
-        post_data_debug = {
-            'check_in_date_raw': request.POST.get('check_in_date', 'NOT_FOUND'),
-            'check_out_date_raw': request.POST.get('check_out_date', 'NOT_FOUND'),
-            'room_raw': request.POST.get('room', 'NOT_FOUND'),
-            'check_in_str': check_in_str,
-            'check_out_str': check_out_str,
-        }
-        
-        # Parse dates with explicit error handling
+
         check_in = None
         check_out = None
-        date_parse_errors = []
-        
+
         if check_in_str:
             try:
-                check_in = datetime.strptime(check_in_str, '%Y-%m-%d').date()
+                check_in = parse_date_safe(check_in_str)
             except ValueError:
-                date_parse_errors.append(f'Invalid check-in date: {check_in_str}')
                 check_in = None
-        
+
         if check_out_str:
             try:
-                check_out = datetime.strptime(check_out_str, '%Y-%m-%d').date()
+                check_out = parse_date_safe(check_out_str)
             except ValueError:
-                date_parse_errors.append(f'Invalid check-out date: {check_out_str}')
                 check_out = None
-        
-        # Validate dates are valid and check-out is after check-in
+
         dates_valid = False
         if check_in and check_out:
             if check_out > check_in:
                 dates_valid = True
             else:
                 messages.error(request, 'Check-out date must be after check-in date.')
-        
-        # ALWAYS get available rooms if dates are valid
+
         available_rooms = []
         if dates_valid:
             try:
                 rooms_queryset = get_available_rooms(check_in, check_out)
                 available_rooms = list(rooms_queryset) if rooms_queryset else []
             except Exception as e:
-                # Log the error but don't break the flow
                 import logging
                 logger = logging.getLogger(__name__)
                 logger.error(f'Error getting available rooms: {str(e)}')
                 available_rooms = []
                 messages.error(request, 'Error calculating available rooms. Please try again.')
-        else:
-            # Dates not valid, ensure empty list
-            available_rooms = []
-        
-        # Ensure available_rooms is always a list (never None)
+
         if not isinstance(available_rooms, list):
             available_rooms = list(available_rooms) if available_rooms else []
-        
-        # Create form with POST data and parsed dates
+
         form = ReservationForm(request.POST, check_in_date=check_in, check_out_date=check_out)
-        
-        # If room is selected, try to save
+
         if room_id:
             if form.is_valid():
-                reservation = form.save(commit=False)
-                reservation.status = 'confirmed'
-                reservation.save()
-                messages.success(request, f'Reservation confirmed for {reservation.customer_name} in Room {reservation.room.room_number}.')
-                return redirect('reservations:dashboard')
-        
-        # Always render the form with available rooms (whether room selected or not)
-        # Use the string values from POST for template display
+                cd = form.cleaned_data
+                reservation = create_confirmed_reservation(
+                    customer_name=cd['customer_name'],
+                    voucher_number=cd.get('voucher_number') or '',
+                    room_id=cd['room'].id,
+                    check_in_date=cd['check_in_date'],
+                    check_out_date=cd['check_out_date'],
+                    notes=cd.get('notes') or '',
+                    skip_availability_check=True,
+                )
+                if reservation:
+                    messages.success(request, f'Reservation confirmed for {reservation.customer_name} in Room {reservation.room.room_number}.')
+                    return redirect('reservations:dashboard')
+                messages.error(request, 'Room is no longer available for the selected dates. Please choose another room.')
+
         context = {
             'form': form,
             'available_rooms': available_rooms,
             'check_in': check_in_str,
             'check_out': check_out_str,
-            'post_debug': post_data_debug,  # Debug info
         }
         return render(request, 'reservations/new_reservation.html', context)
     else:
-        # GET request - initial form load
         check_in_str = request.GET.get('check_in_date', '')
         check_out_str = request.GET.get('check_out_date', '')
-        
+
         check_in = None
         check_out = None
-        
+
         if check_in_str:
             try:
-                check_in = datetime.strptime(check_in_str, '%Y-%m-%d').date()
+                check_in = parse_date_safe(check_in_str)
             except ValueError:
                 check_in = None
-        
+
         if check_out_str:
             try:
-                check_out = datetime.strptime(check_out_str, '%Y-%m-%d').date()
+                check_out = parse_date_safe(check_out_str)
             except ValueError:
                 check_out = None
-        
+
         form = ReservationForm(check_in_date=check_in, check_out_date=check_out)
         available_rooms = []
-        
+
         if check_in and check_out and check_out > check_in:
             try:
                 rooms_queryset = get_available_rooms(check_in, check_out)
@@ -235,17 +243,15 @@ def confirm_reservation(request):
                 logger = logging.getLogger(__name__)
                 logger.error(f'Error getting available rooms: {str(e)}')
                 available_rooms = []
-        
-        # Ensure it's always a list
+
         if not isinstance(available_rooms, list):
             available_rooms = list(available_rooms) if available_rooms else []
-        
+
         return render(request, 'reservations/new_reservation.html', {
             'form': form,
             'available_rooms': available_rooms,
             'check_in': check_in_str if check_in_str else '',
             'check_out': check_out_str if check_out_str else '',
-            'post_debug': None,  # No POST data on GET request
         })
 
 
@@ -253,22 +259,19 @@ def confirm_reservation(request):
 def room_availability(request):
     """Room availability view with date range filtering."""
     today = date.today()
-    start_date = request.GET.get('start_date', today.strftime('%Y-%m-%d'))
-    end_date = request.GET.get('end_date', (today + timedelta(days=7)).strftime('%Y-%m-%d'))
+    start_date = request.GET.get('start_date', today.strftime('%Y/%m/%d'))
+    end_date = request.GET.get('end_date', (today + timedelta(days=7)).strftime('%Y/%m/%d'))
     try:
-        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+        start_date = parse_date_safe(start_date) or today
+        end_date = parse_date_safe(end_date) or (today + timedelta(days=7))
     except ValueError:
         start_date = today
         end_date = today + timedelta(days=7)
     if end_date < start_date:
         end_date = start_date + timedelta(days=7)
-    # Order rooms numerically by room_number (stored as string) so
-    # Room 1 .. Room 30 appear in ascending order.
     rooms = Room.objects.filter(is_active=True).annotate(
         room_num_int=Cast('room_number', IntegerField())
     ).order_by('room_num_int')
-    # Only confirmed reservations count as booked; cancelled rooms reappear as available.
     reservations = Reservation.objects.filter(status='confirmed', check_in_date__lt=end_date, check_out_date__gt=start_date).select_related('room')
     room_statuses = []
     for room in rooms:
@@ -293,14 +296,16 @@ def reservation_list(request):
         reservations = reservations.filter(voucher_number__icontains=search_voucher)
     if start_date:
         try:
-            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
-            reservations = reservations.filter(check_in_date__gte=start_date_obj)
+            start_date_obj = parse_date_safe(start_date)
+            if start_date_obj:
+                reservations = reservations.filter(check_in_date__gte=start_date_obj)
         except ValueError:
             pass
     if end_date:
         try:
-            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
-            reservations = reservations.filter(check_out_date__lte=end_date_obj)
+            end_date_obj = parse_date_safe(end_date)
+            if end_date_obj:
+                reservations = reservations.filter(check_out_date__lte=end_date_obj)
         except ValueError:
             pass
     paginator = Paginator(reservations, 20)

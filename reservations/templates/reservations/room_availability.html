@@ -13,11 +13,11 @@
         <form method="get" class="d-flex gap-2 align-center">
             <div class="form-group" style="margin-bottom: 0;">
                 <label class="form-label">Start Date</label>
-                <input type="date" name="start_date" value="{{ start_date|date:'Y-m-d' }}" class="form-control">
+                <input type="text" name="start_date" value="{{ start_date|date:'Y/m/d' }}" class="form-control date-picker" placeholder="yyyy/mm/dd">
             </div>
             <div class="form-group" style="margin-bottom: 0;">
                 <label class="form-label">End Date</label>
-                <input type="date" name="end_date" value="{{ end_date|date:'Y-m-d' }}" class="form-control">
+                <input type="text" name="end_date" value="{{ end_date|date:'Y/m/d' }}" class="form-control date-picker" placeholder="yyyy/mm/dd">
             </div>
             <div style="display: flex; align-items: flex-end;">
                 <button type="submit" class="btn btn-primary">Filter</button>
@@ -28,7 +28,7 @@
 
 <div class="card">
     <div class="card-header">
-        <h3 class="card-title">Room Status ({{ start_date|date:"M d" }} - {{ end_date|date:"M d, Y" }})</h3>
+        <h3 class="card-title">Room Status ({{ start_date|date:"Y/m/d" }} - {{ end_date|date:"Y/m/d" }})</h3>
     </div>
     <div class="card-body">
         <div class="table-container">
@@ -57,7 +57,7 @@
                             {% for reservation in room_data.reservations %}
                             <div style="margin-bottom: 0.5rem;">
                                 <strong>{{ reservation.customer_name }}</strong><br>
-                                <small>{{ reservation.check_in_date|date:"M d" }} - {{ reservation.check_out_date|date:"M d, Y" }}</small>
+                                <small>{{ reservation.check_in_date|date:"Y/m/d" }} - {{ reservation.check_out_date|date:"Y/m/d" }}</small>
                             </div>
                             {% empty %}
                             —

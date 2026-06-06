@@ -21,11 +21,11 @@
             </div>
             <div class="form-group">
                 <label class="form-label">Check-in From</label>
-                <input type="date" name="start_date" value="{{ start_date }}" class="form-control">
+                <input type="text" name="start_date" value="{{ start_date }}" class="form-control date-picker" placeholder="yyyy/mm/dd">
             </div>
             <div class="form-group">
                 <label class="form-label">Check-out To</label>
-                <input type="date" name="end_date" value="{{ end_date }}" class="form-control">
+                <input type="text" name="end_date" value="{{ end_date }}" class="form-control date-picker" placeholder="yyyy/mm/dd">
             </div>
             <div class="d-flex gap-2">
                 <button type="submit" class="btn btn-primary">Search</button>
@@ -58,8 +58,8 @@
                     <tr>
                         <td><strong>{{ reservation.customer_name }}</strong></td>
                         <td>Room {{ reservation.room.room_number }}</td>
-                        <td>{{ reservation.check_in_date|date:"M d, Y" }}</td>
-                        <td>{{ reservation.check_out_date|date:"M d, Y" }}</td>
+                        <td>{{ reservation.check_in_date|date:"Y/m/d" }}</td>
+                        <td>{{ reservation.check_out_date|date:"Y/m/d" }}</td>
                         <td>{{ reservation.voucher_number|default:"—" }}</td>
                         <td>
                             {% if reservation.status == 'confirmed' %}
