@@ -402,7 +402,7 @@ def api_available_rooms(request):
 @login_required
 def reservation_list(request):
     """List all reservations with search functionality."""
-    reservations = Reservation.objects.select_related('room').order_by('-created_at')
+    reservations = Reservation.objects.select_related('room').prefetch_related('vouchers').order_by('-created_at')
     search_name = request.GET.get('name', '')
     search_voucher = request.GET.get('voucher', '')
     start_date = request.GET.get('start_date', '')
@@ -459,6 +459,20 @@ def cancel_reservation(request, pk):
     if request.method == 'POST':
         reservation.status = 'cancelled'
         reservation.save()
+        reservation.room.update_status()
         messages.success(request, f'Reservation for {reservation.customer_name} has been cancelled.')
         return redirect('reservations:reservation_list')
     return render(request, 'reservations/cancel_reservation.html', {'reservation': reservation})
+
+@login_required
+def delete_reservation(request, pk):
+    """Delete a past reservation entirely."""
+    reservation = get_object_or_404(Reservation, pk=pk)
+    if request.method == 'POST':
+        room = reservation.room
+        customer = reservation.customer_name
+        reservation.delete()
+        room.update_status()
+        messages.success(request, f'Past reservation for {customer} has been deleted.')
+        return redirect('reservations:reservation_list')
+    return render(request, 'reservations/delete_reservation.html', {'reservation': reservation})

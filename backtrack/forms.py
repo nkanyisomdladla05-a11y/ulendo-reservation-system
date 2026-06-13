@@ -1,24 +1,24 @@
 from django import forms
 from django.db.models import Q, IntegerField, Exists, OuterRef
 from django.db.models.functions import Cast
+from datetime import date as date_type
 from .models import BacktrackReservation, BacktrackVoucher
 from rooms.models import Room
 from reservations.models import Reservation
 
 
 def get_available_backtrack_rooms(check_in_date, check_out_date, exclude_reservation=None):
-    """
-    Get available rooms for backtrack: exclude rooms with overlapping
-    confirmed reservations in BOTH the main system and backtrack system.
-    """
     if not check_in_date or not check_out_date or check_out_date <= check_in_date:
         return Room.objects.none()
 
     all_rooms = Room.objects.filter(is_active=True)
+    today = date_type.today()
 
     booked_main = Reservation.objects.filter(
         status='confirmed',
+        check_out_date__gt=today,  # ignore past bookings
         room_id=OuterRef('pk'),
+    ).filter(
         check_in_date__lt=check_out_date,
         check_out_date__gt=check_in_date,
     )
@@ -26,6 +26,7 @@ def get_available_backtrack_rooms(check_in_date, check_out_date, exclude_reserva
     backtrack_qs = BacktrackReservation.objects.filter(
         status='confirmed',
         room_number=OuterRef('room_number'),
+    ).filter(
         check_in_date__lt=check_out_date,
         check_out_date__gt=check_in_date,
     )
@@ -61,10 +62,11 @@ class BacktrackReservationForm(forms.ModelForm):
 
     class Meta:
         model = BacktrackReservation
-        fields = ['customer_name', 'voucher_number', 'room_number', 'check_in_date', 'check_out_date', 'notes']
+        fields = ['customer_name', 'voucher_number', 'confirmation_code', 'room_number', 'check_in_date', 'check_out_date', 'notes']
         widgets = {
             'customer_name': forms.TextInput(attrs={'class': 'form-control'}),
             'voucher_number': forms.TextInput(attrs={'class': 'form-control'}),
+            'confirmation_code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Optional confirmation code/number'}),
             'room_number': forms.Select(attrs={'class': 'form-control'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
@@ -98,9 +100,11 @@ class BacktrackReservationForm(forms.ModelForm):
             self.fields['room_number'].required = bool(choices)
             self._available_rooms = available
         else:
+            today = date_type.today()
             booked_main = Reservation.objects.filter(
                 room_id=OuterRef('pk'),
                 status='confirmed',
+                check_out_date__gt=today,
             )
             qs = Room.objects.filter(is_active=True).annotate(
                 has_booking=Exists(booked_main),

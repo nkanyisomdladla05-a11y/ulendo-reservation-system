@@ -49,6 +49,7 @@
                         <th>Check-in</th>
                         <th>Check-out</th>
                         <th>Voucher</th>
+                        <th>Confirmation Code/Number</th>
                         <th>Notes</th>
                         <th>Actions</th>
                     </tr>
@@ -70,7 +71,15 @@
                         <td>Room {{ res.room_number }}</td>
                         <td>{{ res.check_in_date|date:"y/m/d" }}</td>
                         <td>{{ res.check_out_date|date:"y/m/d" }}</td>
-                        <td>{{ res.voucher_number|default:"—" }}</td>
+                        <td>
+                            {{ res.voucher_number|default:"—" }}
+                            {% with voucher=res.vouchers.first %}
+                                {% if voucher and voucher.voucher_file %}
+                                <a href="{{ voucher.voucher_file.url }}" target="_blank" title="View Voucher" class="voucher-eye-link">👁</a>
+                                {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td>{{ res.confirmation_code|default:"—" }}</td>
                         <td style="max-width:200px;font-size:0.8rem;color:var(--text-secondary);white-space:normal;word-break:break-word;">{{ res.notes|default:"—"|truncatewords:15 }}</td>
                         <td>
                             <div class="d-flex gap-1">
@@ -84,7 +93,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                        <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
                             No backtrack records found.
                         </td>
                     </tr>

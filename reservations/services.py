@@ -1,31 +1,24 @@
+import sys
 from django.db import transaction
 from django.db.models import Q, IntegerField
 from django.db.models.functions import Cast
-from datetime import date, timedelta
+from datetime import date as date_type, timedelta
 from .models import Reservation
 from rooms.models import Room
 
 
 def get_available_rooms(check_in_date, check_out_date, exclude_reservation=None):
-    """
-    Get all available rooms for the given date range.
-    Uses date overlap logic: a room is booked if it has a confirmed reservation
-    where check_in_date < other_check_out_date AND check_out_date > other_check_in_date.
-
-    Args:
-        check_in_date: Check-in date
-        check_out_date: Check-out date
-        exclude_reservation: Optional Reservation instance to exclude from check
-
-    Returns:
-        QuerySet: Available Room instances ordered by room number
-    """
     if not check_in_date or not check_out_date or check_out_date <= check_in_date:
+        print(f"[get_available_rooms] Invalid dates: {check_in_date} - {check_out_date}", file=sys.stderr)
         return Room.objects.none()
 
     all_rooms = Room.objects.filter(is_active=True)
+    today = date_type.today()
 
-    booked_query = Reservation.objects.filter(status='confirmed')
+    booked_query = Reservation.objects.filter(
+        status='confirmed',
+        check_out_date__gt=today,  # ignore past bookings
+    )
 
     if exclude_reservation:
         booked_query = booked_query.exclude(pk=exclude_reservation.pk)
@@ -34,33 +27,28 @@ def get_available_rooms(check_in_date, check_out_date, exclude_reservation=None)
         Q(check_in_date__lt=check_out_date) & Q(check_out_date__gt=check_in_date)
     ).values_list('room_id', flat=True).distinct()
 
-    return (
+    print(f"[get_available_rooms] dates: {check_in_date} - {check_out_date} today={today}", file=sys.stderr)
+    print(f"[get_available_rooms] booked_room_ids: {list(booked_room_ids)}", file=sys.stderr)
+
+    result = (
         all_rooms
         .exclude(id__in=booked_room_ids)
         .annotate(room_num_int=Cast('room_number', IntegerField()))
         .order_by('room_num_int')
     )
+    print(f"[get_available_rooms] available rooms: {[(r.id, r.room_number) for r in result]}", file=sys.stderr)
+    return result
 
 
 def check_room_availability(room, check_in_date, check_out_date, exclude_reservation=None):
-    """
-    Check if a room is available for the given date range.
-
-    Args:
-        room: Room instance or room id
-        check_in_date: Check-in date
-        check_out_date: Check-out date
-        exclude_reservation: Optional Reservation instance to exclude from check
-
-    Returns:
-        bool: True if room is available, False otherwise
-    """
     if check_out_date <= check_in_date:
         return False
 
+    today = date_type.today()
     overlapping = Reservation.objects.filter(
         room=room,
         status='confirmed',
+        check_out_date__gt=today,  # ignore past bookings
     )
 
     if exclude_reservation:
@@ -74,7 +62,7 @@ def check_room_availability(room, check_in_date, check_out_date, exclude_reserva
 
 
 @transaction.atomic
-def create_confirmed_reservation(customer_name, voucher_number, room_id, check_in_date, check_out_date, notes='', skip_availability_check=False, exclude_reservation=None):
+def create_confirmed_reservation(customer_name, voucher_number, room_id, check_in_date, check_out_date, confirmation_code=None, notes='', skip_availability_check=False, exclude_reservation=None):
     """
     Single place that creates and saves a confirmed reservation. Used by both
     manual booking and voucher booking so they share the same code and logic.
@@ -109,6 +97,7 @@ def create_confirmed_reservation(customer_name, voucher_number, room_id, check_i
     reservation = Reservation(
         customer_name=customer_name,
         voucher_number=voucher_number or None,
+        confirmation_code=confirmation_code or None,
         room=room,
         check_in_date=check_in_date,
         check_out_date=check_out_date,
@@ -116,6 +105,7 @@ def create_confirmed_reservation(customer_name, voucher_number, room_id, check_i
         notes=notes or None,
     )
     reservation.save()
+    room.update_status()
     return reservation
 
 

@@ -62,7 +62,7 @@ def dashboard(request):
     total = BacktrackReservation.objects.count()
     confirmed = BacktrackReservation.objects.filter(status='confirmed').count()
     cancelled = BacktrackReservation.objects.filter(status='cancelled').count()
-    recent = BacktrackReservation.objects.order_by('-created_at')[:10]
+    recent = BacktrackReservation.objects.prefetch_related('vouchers').order_by('-created_at')[:10]
 
     context = {
         'total': total,
@@ -116,6 +116,7 @@ def new_backtrack(request):
             reservation = create_backtrack_reservation(
                 customer_name=cd['customer_name'],
                 voucher_number=cd.get('voucher_number') or '',
+                confirmation_code=cd.get('confirmation_code') or '',
                 room_number=cd['room_number'],
                 check_in_date=cd['check_in_date'],
                 check_out_date=cd['check_out_date'],
@@ -195,6 +196,16 @@ def upload_backtrack_voucher(request):
                     'extracted_data', 'customer_name', 'voucher_number',
                     'check_in_date', 'check_out_date', 'check_in_raw', 'check_out_raw'
                 ])
+
+                # Debug log
+                import sys
+                print(f"\n=== BACKTRACK VOUCHER SAVED ===", file=sys.stderr)
+                print(f"Saved check_in: {voucher.check_in_date}", file=sys.stderr)
+                print(f"Saved check_out: {voucher.check_out_date}", file=sys.stderr)
+                print(f"Saved check_in_raw: {voucher.check_in_raw}", file=sys.stderr)
+                print(f"Saved check_out_raw: {voucher.check_out_raw}", file=sys.stderr)
+                print(f"==============================\n", file=sys.stderr)
+
                 review_url = reverse('backtrack:review_backtrack_voucher', kwargs={'voucher_id': voucher.id})
                 params = []
                 if manual_check_in:
@@ -266,6 +277,7 @@ def review_backtrack_voucher(request, voucher_id):
             reservation = create_backtrack_reservation(
                 customer_name=voucher.customer_name,
                 voucher_number=voucher.voucher_number or '',
+                confirmation_code=request.POST.get('confirmation_code', '') or '',
                 room_number=room_number,
                 check_in_date=voucher.check_in_date,
                 check_out_date=voucher.check_out_date,
@@ -293,37 +305,39 @@ def review_backtrack_voucher(request, voucher_id):
             else:
                 messages.error(request, 'Please select a room and ensure dates are set.')
 
-    gi = request.GET.get('check_in', '').strip()
-    go = request.GET.get('check_out', '').strip()
-    form_check_in = None
-    form_check_out = None
-    if gi and go:
-        try:
-            form_check_in = parse_date_safe(gi)
-            form_check_out = parse_date_safe(go)
-        except ValueError:
-            pass
-    if not form_check_in or not form_check_out:
-        form_check_in = voucher.check_in_date if isinstance(voucher.check_in_date, date) else None
-        form_check_out = voucher.check_out_date if isinstance(voucher.check_out_date, date) else None
+    form_check_in = voucher.check_in_date if isinstance(voucher.check_in_date, date) else None
+    form_check_out = voucher.check_out_date if isinstance(voucher.check_out_date, date) else None
 
+    # Filter room dropdown by current availability (today's date), like manual booking
+    today = date.today()
+    tomorrow = today + timedelta(days=1)
     room_form = BacktrackReservationForm(
         initial={
             'customer_name': voucher.customer_name,
             'voucher_number': voucher.voucher_number,
-            'check_in_date': gi or (voucher.extracted_data.get('check_in_raw', '') if voucher.extracted_data else ''),
-            'check_out_date': go or (voucher.extracted_data.get('check_out_raw', '') if voucher.extracted_data else ''),
+            'check_in_date': form_check_in.strftime('%Y/%m/%d') if form_check_in else '',
+            'check_out_date': form_check_out.strftime('%Y/%m/%d') if form_check_out else '',
         },
-        check_in_date=form_check_in,
-        check_out_date=form_check_out,
+        check_in_date=today,
+        check_out_date=tomorrow,
     )
 
     context = {
         'voucher': voucher,
         'room_form': room_form,
-        'check_in': gi or (form_check_in.strftime('%Y/%m/%d') if form_check_in else ''),
-        'check_out': go or (form_check_out.strftime('%Y/%m/%d') if form_check_out else ''),
+        'check_in': form_check_in.strftime('%Y/%m/%d') if form_check_in else '',
+        'check_out': form_check_out.strftime('%Y/%m/%d') if form_check_out else '',
     }
+
+    # Debug log
+    import sys
+    print(f"\n=== BACKTRACK REVIEW PAGE ===", file=sys.stderr)
+    print(f"form_check_in: {form_check_in} form_check_out: {form_check_out}", file=sys.stderr)
+    print(f"context check_in: '{context['check_in']}' check_out: '{context['check_out']}'", file=sys.stderr)
+    print(f"voucher.check_in_date: {voucher.check_in_date}", file=sys.stderr)
+    print(f"voucher.check_out_date: {voucher.check_out_date}", file=sys.stderr)
+    print(f"voucher.extracted_data: {dict(voucher.extracted_data) if voucher.extracted_data else None}", file=sys.stderr)
+    print(f"============================\n", file=sys.stderr)
 
     return render(request, 'backtrack/review_backtrack.html', context)
 
@@ -331,7 +345,7 @@ def review_backtrack_voucher(request, voucher_id):
 @login_required
 def backtrack_list(request):
     """List all backtrack reservations with search."""
-    reservations = BacktrackReservation.objects.order_by('-check_in_date')
+    reservations = BacktrackReservation.objects.prefetch_related('vouchers').order_by('-check_in_date')
     search_name = request.GET.get('name', '')
     search_voucher = request.GET.get('voucher', '')
     start_date = request.GET.get('start_date', '')

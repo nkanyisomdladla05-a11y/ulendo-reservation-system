@@ -268,9 +268,14 @@ def parse_dates(text):
     specific_checkin = r'(?:check[-\s]?in|checkin)'
     specific_checkout = r'(?:check[-\s]?out|checkout)'
 
-    # Phase 2: Generic labels (fallback only)
-    generic_checkin = r'(?:arrival|from|start\s*date|arrive)'
-    generic_checkout = r'(?:departure|to|end\s*date|depart)'
+    # Phase 2: "From" / "To" pair (common on invoices)
+    # Require a colon/space after to avoid matching "from_date", "total", etc.
+    from_label = r'\bfrom[\s:]'
+    to_label = r'\bto[\s:]'
+
+    # Phase 3: Other generic labels (fallback only) — use word boundaries to avoid false matches
+    generic_checkin = r'\b(?:arrival|from\b|start\s*date|arrive)\b'
+    generic_checkout = r'\b(?:departure|depart|end\s*date)\b'
 
     lines = text.split('\n')
 
@@ -320,12 +325,20 @@ def parse_dates(text):
     check_in_date, check_in_raw = find_date_for_label(specific_checkin, lines)
     check_out_date, check_out_raw = find_date_for_label(specific_checkout, lines)
 
-    # Phase 2: Generic labels (only if Phase 1 didn't find both)
+    # Phase 2: "From" / "To" pair — only use if BOTH found (reduces false positives)
+    if not check_in_date or not check_out_date:
+        from_date, from_raw = find_date_for_label(from_label, lines)
+        to_date, to_raw = find_date_for_label(to_label, lines)
+        if from_date and to_date and to_date > from_date:
+            if not check_in_date:
+                check_in_date, check_in_raw = from_date, from_raw
+            if not check_out_date:
+                check_out_date, check_out_raw = to_date, to_raw
+
+    # Phase 3: Other generic labels (fallback only)
     if not check_in_date:
         check_in_date, check_in_raw = find_date_for_label(generic_checkin, lines)
     if not check_out_date:
-        # For generic checkout, skip lines that are actually destination addresses
-        # (lines with "TO:" followed by hotel/address info, not dates)
         check_out_date, check_out_raw = find_date_for_label(generic_checkout, lines)
 
     # Fallback: find all YYYY/MM/DD dates in text
@@ -377,6 +390,16 @@ def extract_voucher_data(image_path):
     customer_name = parse_customer_name(raw_text)
     voucher_number = parse_voucher_number(raw_text)
     date_info = parse_dates(raw_text)
+
+    # Log for debugging
+    import sys
+    print(f"\n=== VOUCHER EXTRACTION ===", file=sys.stderr)
+    print(f"Raw text:\n{raw_text}\n", file=sys.stderr)
+    print(f"Check-in: {date_info['check_in_date']} | raw: {date_info['check_in_raw']}", file=sys.stderr)
+    print(f"Check-out: {date_info['check_out_date']} | raw: {date_info['check_out_raw']}", file=sys.stderr)
+    print(f"Name: {customer_name}", file=sys.stderr)
+    print(f"Voucher: {voucher_number}", file=sys.stderr)
+    print(f"========================\n", file=sys.stderr)
 
     return {
         'customer_name': customer_name,

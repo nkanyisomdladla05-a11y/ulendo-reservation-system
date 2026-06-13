@@ -49,6 +49,7 @@
                         <th>Check-in</th>
                         <th>Check-out</th>
                         <th>Voucher</th>
+                        <th>Confirmation Code/Number</th>
                         <th>Notes</th>
                         <th>Actions</th>
                     </tr>
@@ -70,20 +71,33 @@
                         <td>Room {{ reservation.room.room_number }}</td>
                         <td>{{ reservation.check_in_date|date:"Y/m/d" }}</td>
                         <td>{{ reservation.check_out_date|date:"Y/m/d" }}</td>
-                        <td>{{ reservation.voucher_number|default:"—" }}</td>
+                        <td>
+                            {{ reservation.voucher_number|default:"—" }}
+                            {% with voucher=reservation.vouchers.first %}
+                                {% if voucher and voucher.voucher_file %}
+                                <a href="{{ voucher.voucher_file.url }}" target="_blank" title="View Voucher" class="voucher-eye-link">👁</a>
+                                {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td>{{ reservation.confirmation_code|default:"—" }}</td>
                         <td style="max-width:200px;font-size:0.8rem;color:var(--text-secondary);white-space:normal;word-break:break-word;">{{ reservation.notes|default:"—"|truncatewords:15 }}</td>
                         <td>
                             <div class="d-flex gap-1">
                                 <a href="{% url 'reservations:edit_reservation' reservation.pk %}" class="btn btn-sm btn-primary">Edit</a>
                                 {% if reservation.status == 'confirmed' %}
-                                <a href="{% url 'reservations:cancel_reservation' reservation.pk %}" class="btn btn-sm btn-danger">Cancel</a>
+                                    {% now "Ymd" as today %}
+                                    {% if reservation.check_out_date|date:"Ymd" < today %}
+                                    <a href="{% url 'reservations:delete_reservation' reservation.pk %}" class="btn btn-sm btn-danger">Delete</a>
+                                    {% else %}
+                                    <a href="{% url 'reservations:cancel_reservation' reservation.pk %}" class="btn btn-sm btn-danger">Cancel</a>
+                                    {% endif %}
                                 {% endif %}
                             </div>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                        <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
                             No reservations found.
                         </td>
                     </tr>

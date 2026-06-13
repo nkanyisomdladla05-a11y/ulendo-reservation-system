@@ -1057,3 +1057,15 @@ tbody tr:last-child td {
         flex-direction: column;
     }
 }
+
+.voucher-eye-link {
+    text-decoration: none;
+    margin-left: 4px;
+    font-size: 1rem;
+    opacity: 0.7;
+    transition: opacity 0.15s;
+    cursor: pointer;
+}
+.voucher-eye-link:hover {
+    opacity: 1;
+}

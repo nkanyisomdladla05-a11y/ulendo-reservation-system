@@ -42,6 +42,14 @@
 
             <div class="grid grid-2">
                 <div class="form-group">
+                    <label class="form-label">Confirmation Code/Number</label>
+                    <input type="text" name="confirmation_code" value="" class="form-control" placeholder="Optional">
+                </div>
+                <div class="form-group"></div>
+            </div>
+
+            <div class="grid grid-2">
+                <div class="form-group">
                     <label class="form-label">Check-in Date *</label>
                     <input type="text" name="check_in_date" value="{% if check_in %}{{ check_in }}{% else %}{{ voucher.extracted_data.check_in_raw|default:'' }}{% endif %}" class="form-control date-picker" placeholder="yyyy/mm/dd" required>
                 </div>
@@ -74,19 +82,14 @@
                 <a href="{% url 'reservations:new_reservation' %}" class="btn btn-secondary">Cancel</a>
             </div>
         </form>
+
+        {% if voucher.extracted_data.raw_text %}
+        <div style="margin-top: 1.5rem; font-size: 0.8rem;">
+            <label class="form-label">Raw OCR Text</label>
+            <pre style="background: #f5f5f5; padding: 1rem; border-radius: 6px; white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto; border: 1px solid var(--border);">{{ voucher.extracted_data.raw_text }}</pre>
+        </div>
+        {% endif %}
     </div>
 </div>
 
-<script>
-function reloadVoucherWithDates() {
-    var checkIn = document.querySelector('input[name="check_in_date"]').value;
-    var checkOut = document.querySelector('input[name="check_out_date"]').value;
-    if (checkIn && checkOut) {
-        var base = window.location.pathname;
-        window.location.href = base + '?check_in=' + encodeURIComponent(checkIn) + '&check_out=' + encodeURIComponent(checkOut);
-    }
-}
-document.querySelector('input[name="check_in_date"]').addEventListener('change', reloadVoucherWithDates);
-document.querySelector('input[name="check_out_date"]').addEventListener('change', reloadVoucherWithDates);
-</script>
 {% endblock %}

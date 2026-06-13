@@ -6,7 +6,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from dateutil import parser as date_parser
 from .models import Voucher
 from .forms import VoucherUploadForm, VoucherReviewForm
@@ -14,6 +14,7 @@ from .services import extract_voucher_data
 from reservations.models import Reservation
 from reservations.services import create_confirmed_reservation
 from reservations.forms import ReservationForm
+from rooms.models import Room
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,15 @@ def upload_voucher(request):
                     'extracted_data', 'customer_name', 'voucher_number',
                     'check_in_date', 'check_out_date'
                 ])
+
+                # Debug log
+                import sys
+                print(f"\n=== VOUCHER SAVED ===", file=sys.stderr)
+                print(f"Saved check_in: {voucher.check_in_date}", file=sys.stderr)
+                print(f"Saved check_out: {voucher.check_out_date}", file=sys.stderr)
+                print(f"Saved extracted_data: {dict(voucher.extracted_data)}", file=sys.stderr)
+                print(f"=====================\n", file=sys.stderr)
+
                 review_url = reverse('vouchers:review_voucher', kwargs={'voucher_id': voucher.id})
                 params = []
                 if manual_check_in:
@@ -141,6 +151,7 @@ def review_voucher(request, voucher_id):
             form_data = {
                 'customer_name': voucher.customer_name,
                 'voucher_number': voucher.voucher_number or '',
+                'confirmation_code': request.POST.get('confirmation_code', ''),
                 'room': room_id,
                 'check_in_date': voucher.check_in_date.strftime('%Y/%m/%d'),
                 'check_out_date': voucher.check_out_date.strftime('%Y/%m/%d'),
@@ -156,6 +167,7 @@ def review_voucher(request, voucher_id):
                 reservation = create_confirmed_reservation(
                     customer_name=cd['customer_name'],
                     voucher_number=cd.get('voucher_number') or '',
+                    confirmation_code=cd.get('confirmation_code') or '',
                     room_id=cd['room'].id,
                     check_in_date=cd['check_in_date'],
                     check_out_date=cd['check_out_date'],
@@ -181,8 +193,36 @@ def review_voucher(request, voucher_id):
                     for msg in errors:
                         messages.error(request, msg)
 
+                # Rebuild room field queryset to show all rooms with status (unfiltered by dates)
+                from datetime import date as dt_date
+                from django.db.models import Exists, OuterRef, IntegerField
+                from django.db.models.functions import Cast
+                today = dt_date.today()
+                all_rooms = Room.objects.filter(is_active=True).annotate(
+                    has_booking=Exists(
+                        Reservation.objects.filter(
+                            room=OuterRef('pk'),
+                            status='confirmed',
+                            check_out_date__gt=today,
+                        )
+                    ),
+                    room_num_int=Cast('room_number', IntegerField())
+                ).order_by('room_num_int')
+                form.fields['room'].queryset = all_rooms
+
+                def label_from_instance(room):
+                    label = f"Room {room.room_number}"
+                    if room.room_type:
+                        label += f" ({room.room_type})"
+                    if getattr(room, 'has_booking', False):
+                        label += " — Booked"
+                    if room.status == 'booked':
+                        label += " ●"
+                    return label
+                form.fields['room'].label_from_instance = label_from_instance
+
                 form_room = form.fields['room'].queryset
-                available_rooms_count = form_room.count() if form_room else 0
+                available_rooms_count = form_room.filter(status='available').count() if form_room else 0
                 context = {
                     'voucher': voucher,
                     'form': form,
@@ -194,37 +234,31 @@ def review_voucher(request, voucher_id):
         else:
             messages.error(request, 'Please select a room and ensure dates are set.')
 
-    # Build ReservationForm — prefer GET params (from date change), fallback to voucher dates
-    gi = request.GET.get('check_in', '').strip()
-    go = request.GET.get('check_out', '').strip()
-    form_check_in = None
-    form_check_out = None
-    if gi and go:
-        try:
-            form_check_in = parse_date_safe(gi)
-            form_check_out = parse_date_safe(go)
-        except ValueError:
-            pass
-    if not form_check_in or not form_check_out:
-        form_check_in = voucher.check_in_date
-        form_check_out = voucher.check_out_date
+    form_check_in = voucher.check_in_date
+    form_check_out = voucher.check_out_date
 
-    if form_check_in and form_check_out and form_check_out > form_check_in:
-        form = ReservationForm(
-            check_in_date=form_check_in,
-            check_out_date=form_check_out,
-        )
-        available_rooms_count = form.fields['room'].queryset.count()
-    else:
-        form = ReservationForm()
-        available_rooms_count = 0
+    # Filter room dropdown by current availability (today's date), like manual booking
+    today = date.today()
+    tomorrow = today + timedelta(days=1)
+    form = ReservationForm(check_in_date=today, check_out_date=tomorrow)
+    available_rooms_count = form.fields['room'].queryset.count()
 
     context = {
         'voucher': voucher,
         'form': form,
         'available_rooms_count': available_rooms_count,
-        'check_in': gi or (form_check_in.strftime('%Y/%m/%d') if form_check_in else ''),
-        'check_out': go or (form_check_out.strftime('%Y/%m/%d') if form_check_out else ''),
+        'check_in': form_check_in.strftime('%Y/%m/%d') if form_check_in else '',
+        'check_out': form_check_out.strftime('%Y/%m/%d') if form_check_out else '',
     }
+
+    # Debug log
+    import sys
+    print(f"\n=== REVIEW PAGE ===", file=sys.stderr)
+    print(f"form_check_in: {form_check_in} form_check_out: {form_check_out}", file=sys.stderr)
+    print(f"context check_in: '{context['check_in']}' check_out: '{context['check_out']}'", file=sys.stderr)
+    print(f"voucher.check_in_date: {voucher.check_in_date}", file=sys.stderr)
+    print(f"voucher.check_out_date: {voucher.check_out_date}", file=sys.stderr)
+    print(f"voucher.extracted_data: {dict(voucher.extracted_data) if voucher.extracted_data else None}", file=sys.stderr)
+    print(f"==================\n", file=sys.stderr)
 
     return render(request, 'vouchers/review_voucher.html', context)

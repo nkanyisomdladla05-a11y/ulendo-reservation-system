@@ -1,5 +1,6 @@
 from django.db import models
 from django.db.models import Q
+from datetime import date as date_type
 from rooms.models import Room
 
 
@@ -12,6 +13,7 @@ class Reservation(models.Model):
 
     customer_name = models.CharField(max_length=200)
     voucher_number = models.CharField(max_length=100, blank=True, null=True)
+    confirmation_code = models.CharField(max_length=100, blank=True, null=True)
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='reservations')
     check_in_date = models.DateField()
     check_out_date = models.DateField()
@@ -40,9 +42,11 @@ class Reservation(models.Model):
             raise ValidationError('Check-out date must be after check-in date.')
 
         if self.room_id and self.status == 'confirmed':
+            today = date_type.today()
             overlapping = Reservation.objects.filter(
                 room=self.room,
                 status='confirmed',
+                check_out_date__gt=today,  # ignore past bookings
             )
 
             if self.pk:

@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 
 
 class BacktrackReservation(models.Model):
@@ -10,6 +11,7 @@ class BacktrackReservation(models.Model):
 
     customer_name = models.CharField(max_length=200)
     voucher_number = models.CharField(max_length=100, blank=True, null=True)
+    confirmation_code = models.CharField(max_length=100, blank=True, null=True)
     room_number = models.CharField(max_length=10)
     check_in_date = models.DateField()
     check_out_date = models.DateField()
@@ -30,6 +32,19 @@ class BacktrackReservation(models.Model):
         from django.core.exceptions import ValidationError
         if self.check_out_date <= self.check_in_date:
             raise ValidationError('Check-out date must be after check-in date.')
+
+        if self.room_number and self.status == 'confirmed':
+            overlapping = BacktrackReservation.objects.filter(
+                room_number=self.room_number,
+                status='confirmed',
+            )
+            if self.pk:
+                overlapping = overlapping.exclude(pk=self.pk)
+            overlapping = overlapping.filter(
+                Q(check_in_date__lt=self.check_out_date) & Q(check_out_date__gt=self.check_in_date)
+            )
+            if overlapping.exists():
+                raise ValidationError(f'Room {self.room_number} already has a backtrack reservation for these dates.')
 
 
 class BacktrackVoucher(models.Model):
