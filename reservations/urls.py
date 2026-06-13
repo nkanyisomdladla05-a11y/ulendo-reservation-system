@@ -8,6 +8,7 @@ urlpatterns = [
     path('new/', views.new_reservation, name='new_reservation'),
     path('confirm/', views.confirm_reservation, name='confirm_reservation'),
     path('availability/', views.room_availability, name='room_availability'),
+    path('api/available-rooms/', views.api_available_rooms, name='api_available_rooms'),
     path('list/', views.reservation_list, name='reservation_list'),
     path('<int:pk>/edit/', views.edit_reservation, name='edit_reservation'),
     path('<int:pk>/cancel/', views.cancel_reservation, name='cancel_reservation'),

@@ -43,24 +43,22 @@
             <div class="grid grid-2">
                 <div class="form-group">
                     <label class="form-label">Check-in Date *</label>
-                    <input type="text" name="check_in_date" value="{{ voucher.extracted_data.check_in_raw|default:'' }}" class="form-control date-picker" placeholder="yyyy/mm/dd" required>
+                    <input type="text" name="check_in_date" value="{% if check_in %}{{ check_in }}{% else %}{{ voucher.extracted_data.check_in_raw|default:'' }}{% endif %}" class="form-control date-picker" placeholder="yyyy/mm/dd" required>
                 </div>
 
                 <div class="form-group">
                     <label class="form-label">Check-out Date *</label>
-                    <input type="text" name="check_out_date" value="{{ voucher.extracted_data.check_out_raw|default:'' }}" class="form-control date-picker" placeholder="yyyy/mm/dd" required>
+                    <input type="text" name="check_out_date" value="{% if check_out %}{{ check_out }}{% else %}{{ voucher.extracted_data.check_out_raw|default:'' }}{% endif %}" class="form-control date-picker" placeholder="yyyy/mm/dd" required>
                 </div>
             </div>
 
             <div class="form-group">
                 <label class="form-label">Room *</label>
-                <select name="room_number" class="form-control" required>
-                    <option value="">-- Select a room --</option>
-                    {% for i in "123456789012345678901234567890"|make_list %}
-                    <option value="{{ forloop.counter }}">Room {{ forloop.counter }}</option>
-                    {% endfor %}
-                </select>
+                {{ room_form.room_number }}
                 <div class="form-help">Select the room number from the voucher.</div>
+                {% if room_form.room_number.errors %}
+                    <div class="form-error">{{ room_form.room_number.errors }}</div>
+                {% endif %}
             </div>
 
             <div class="d-flex gap-2 mt-3">
@@ -70,4 +68,17 @@
         </form>
     </div>
 </div>
+
+<script>
+function reloadReviewWithDates() {
+    var checkIn = document.querySelector('input[name="check_in_date"]').value;
+    var checkOut = document.querySelector('input[name="check_out_date"]').value;
+    if (checkIn && checkOut) {
+        var base = window.location.pathname;
+        window.location.href = base + '?check_in=' + encodeURIComponent(checkIn) + '&check_out=' + encodeURIComponent(checkOut);
+    }
+}
+document.querySelector('input[name="check_in_date"]').addEventListener('change', reloadReviewWithDates);
+document.querySelector('input[name="check_out_date"]').addEventListener('change', reloadReviewWithDates);
+</script>
 {% endblock %}

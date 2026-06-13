@@ -49,35 +49,42 @@
                         <th>Check-in</th>
                         <th>Check-out</th>
                         <th>Voucher</th>
-                        <th>Status</th>
+                        <th>Notes</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
+                    {% now "Ymd" as today %}
                     {% for res in page_obj %}
                     <tr>
-                        <td><strong>{{ res.customer_name }}</strong></td>
+                        <td>
+                            {% if res.status == 'cancelled' %}
+                            <span class="status-dot status-dot-cancelled"></span>
+                            {% elif res.check_out_date|date:"Ymd" < today %}
+                            <span class="status-dot status-dot-checkout"></span>
+                            {% else %}
+                            <span class="status-dot status-dot-booked"></span>
+                            {% endif %}
+                            <strong>{{ res.customer_name }}</strong>
+                        </td>
                         <td>Room {{ res.room_number }}</td>
                         <td>{{ res.check_in_date|date:"y/m/d" }}</td>
                         <td>{{ res.check_out_date|date:"y/m/d" }}</td>
                         <td>{{ res.voucher_number|default:"—" }}</td>
+                        <td style="max-width:200px;font-size:0.8rem;color:var(--text-secondary);white-space:normal;word-break:break-word;">{{ res.notes|default:"—"|truncatewords:15 }}</td>
                         <td>
-                            {% if res.status == 'confirmed' %}
-                            <span class="badge badge-success">Confirmed</span>
-                            {% else %}
-                            <span class="badge badge-error">Cancelled</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            <form method="post" action="{% url 'backtrack:delete_reservation' res.pk %}" style="display:inline;" onsubmit="return confirm('Delete this backtrack record?');">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                            </form>
+                            <div class="d-flex gap-1">
+                                <a href="{% url 'backtrack:edit_reservation' res.pk %}" class="btn btn-sm btn-primary">Edit</a>
+                                <form method="post" action="{% url 'backtrack:delete_reservation' res.pk %}" style="display:inline;" onsubmit="return confirm('Delete this backtrack record?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                        <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
                             No backtrack records found.
                         </td>
                     </tr>

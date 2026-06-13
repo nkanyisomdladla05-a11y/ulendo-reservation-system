@@ -34,6 +34,19 @@ class ReservationForm(forms.ModelForm):
         check_out = kwargs.pop('check_out_date', None)
         super().__init__(*args, **kwargs)
 
+        # Use instance values if editing and no explicit dates provided
+        if self.instance.pk:
+            if not check_in and self.instance.check_in_date:
+                check_in = self.instance.check_in_date
+            if not check_out and self.instance.check_out_date:
+                check_out = self.instance.check_out_date
+
+        # Set date initial values in Y/m/d format for Flatpickr
+        if check_in:
+            self.fields['check_in_date'].initial = check_in.strftime('%Y/%m/%d')
+        if check_out:
+            self.fields['check_out_date'].initial = check_out.strftime('%Y/%m/%d')
+
         if check_in and check_out and check_out > check_in:
             qs = get_available_rooms(check_in, check_out, exclude_reservation=self.instance if self.instance.pk else None)
             self.fields['room'].queryset = qs
@@ -63,11 +76,6 @@ class ReservationForm(forms.ModelForm):
 
             self.fields['room'].label_from_instance = label_from_instance
 
-        if not self.instance.pk:
-            if check_in:
-                self.fields['check_in_date'].initial = check_in.strftime('%Y/%m/%d')
-            if check_out:
-                self.fields['check_out_date'].initial = check_out.strftime('%Y/%m/%d')
 
     def clean(self):
         cleaned_data = super().clean()

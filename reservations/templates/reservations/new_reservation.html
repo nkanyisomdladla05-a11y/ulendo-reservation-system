@@ -104,6 +104,8 @@
         <div id="voucher-tab" class="tab-content" style="display: none;">
             <form method="post" action="{% url 'vouchers:upload_voucher' %}" enctype="multipart/form-data">
                 {% csrf_token %}
+                <input type="hidden" name="check_in_date" id="voucher_check_in" value="{{ check_in }}">
+                <input type="hidden" name="check_out_date" id="voucher_check_out" value="{{ check_out }}">
                 <div class="form-group">
                     <label class="form-label">Upload Voucher Image</label>
                     <input type="file" name="voucher_file" accept="image/*,application/pdf,.pdf" class="form-control" required>
@@ -120,14 +122,9 @@
 
 <script>
 function showTab(tabName) {
-    // Hide all tabs
     document.getElementById('manual-tab').style.display = 'none';
     document.getElementById('voucher-tab').style.display = 'none';
-    
-    // Remove active class from all tab buttons
     document.querySelectorAll('.tab-pill').forEach(btn => btn.classList.remove('active'));
-    
-    // Show selected tab and activate corresponding pill
     if (tabName === 'manual') {
         document.getElementById('manual-tab').style.display = 'block';
         document.querySelector('.tab-pill:nth-child(1)').classList.add('active');
@@ -137,23 +134,29 @@ function showTab(tabName) {
     }
 }
 
-// Simple client-side validation (don't block submission, let server handle it)
-document.getElementById('manual-form').addEventListener('submit', function(e) {
-    const checkIn = document.getElementById('check_in_date').value;
-    const checkOut = document.getElementById('check_out_date').value;
-    
-    // Just warn, don't prevent - let server validate
-    if (!checkIn || !checkOut) {
-        // Server will handle this
-        return true;
+function syncDates() {
+    var ci = document.getElementById('check_in_date').value;
+    var co = document.getElementById('check_out_date').value;
+    var vci = document.getElementById('voucher_check_in');
+    var vco = document.getElementById('voucher_check_out');
+    if (vci) vci.value = ci;
+    if (vco) vco.value = co;
+}
+
+function reloadWithDates() {
+    var checkIn = document.getElementById('check_in_date').value;
+    var checkOut = document.getElementById('check_out_date').value;
+    syncDates();
+    if (checkIn && checkOut) {
+        window.location.href = '{% url "reservations:new_reservation" %}?check_in=' + encodeURIComponent(checkIn) + '&check_out=' + encodeURIComponent(checkOut);
     }
-    
-    if (checkOut <= checkIn) {
-        // Server will handle this
-        return true;
-    }
-    
-    return true;
-});
+}
+
+var ci = document.getElementById('check_in_date');
+var co = document.getElementById('check_out_date');
+ci.addEventListener('change', reloadWithDates);
+co.addEventListener('change', reloadWithDates);
+ci.addEventListener('input', syncDates);
+co.addEventListener('input', syncDates);
 </script>
 {% endblock %}

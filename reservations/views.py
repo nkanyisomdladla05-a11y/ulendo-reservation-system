@@ -1,5 +1,7 @@
 import re
+import calendar
 from django.shortcuts import render, redirect, get_object_or_404
+from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -129,12 +131,34 @@ def new_reservation(request):
         return render(request, 'reservations/new_reservation.html', context)
 
     else:
-        form = ReservationForm()
+        check_in_str = request.GET.get('check_in', '').strip()
+        check_out_str = request.GET.get('check_out', '').strip()
+        check_in = None
+        check_out = None
+        if check_in_str:
+            try:
+                check_in = parse_date_safe(check_in_str)
+            except ValueError:
+                check_in = None
+        if check_out_str:
+            try:
+                check_out = parse_date_safe(check_out_str)
+            except ValueError:
+                check_out = None
+
+        if not check_in or not check_out or check_out <= check_in:
+            check_in = date.today()
+            check_out = date.today() + timedelta(days=1)
+            check_in_str = check_in.strftime('%Y/%m/%d')
+            check_out_str = check_out.strftime('%Y/%m/%d')
+
+        form = ReservationForm(check_in_date=check_in, check_out_date=check_out)
+
         return render(request, 'reservations/new_reservation.html', {
             'form': form,
-            'available_rooms_count': 0,
-            'check_in': '',
-            'check_out': '',
+            'available_rooms_count': form.fields['room'].queryset.count(),
+            'check_in': check_in_str,
+            'check_out': check_out_str,
         })
 
 
@@ -257,29 +281,122 @@ def confirm_reservation(request):
 
 @login_required
 def room_availability(request):
-    """Room availability view with date range filtering."""
+    """Room-day matrix showing every room's availability per day of the month."""
     today = date.today()
-    start_date = request.GET.get('start_date', today.strftime('%Y/%m/%d'))
-    end_date = request.GET.get('end_date', (today + timedelta(days=7)).strftime('%Y/%m/%d'))
+    year_str = request.GET.get('year', '')
+    month_str = request.GET.get('month', '')
     try:
-        start_date = parse_date_safe(start_date) or today
-        end_date = parse_date_safe(end_date) or (today + timedelta(days=7))
+        year = int(year_str) if year_str else today.year
+        month = int(month_str) if month_str else today.month
+        if month < 1 or month > 12:
+            raise ValueError
     except ValueError:
-        start_date = today
-        end_date = today + timedelta(days=7)
-    if end_date < start_date:
-        end_date = start_date + timedelta(days=7)
+        year = today.year
+        month = today.month
+
+    num_days = calendar.monthrange(year, month)[1]
+    first_day = date(year, month, 1)
+    last_day = date(year, month, num_days)
+
     rooms = Room.objects.filter(is_active=True).annotate(
-        room_num_int=Cast('room_number', IntegerField())
-    ).order_by('room_num_int')
-    reservations = Reservation.objects.filter(status='confirmed', check_in_date__lt=end_date, check_out_date__gt=start_date).select_related('room')
-    room_statuses = []
+        room_number_int=Cast('room_number', IntegerField())
+    ).order_by('room_number_int')
+
+    reservations = Reservation.objects.filter(
+        status='confirmed',
+        check_in_date__lt=last_day + timedelta(days=1),
+        check_out_date__gt=first_day,
+    ).select_related('room')
+
+    # Build lookups: (room_id, day_num) -> info
+    booked_lookup = {}
+    checkout_lookup = {}
+    for res in reservations:
+        current = res.check_in_date
+        while current < res.check_out_date:
+            if first_day <= current <= last_day:
+                booked_lookup[(res.room_id, current.day)] = {
+                    'customer_name': res.customer_name,
+                    'voucher_number': res.voucher_number or '',
+                    'notes': res.notes or '',
+                }
+            current += timedelta(days=1)
+        checkout_day = res.check_out_date
+        if first_day <= checkout_day <= last_day:
+            checkout_lookup[(res.room_id, checkout_day.day)] = {
+                'customer_name': res.customer_name,
+                'voucher_number': res.voucher_number or '',
+                'notes': res.notes or '',
+            }
+
+    days_list = list(range(1, num_days + 1))
+    weekday_abbr = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    day_weekdays = [weekday_abbr[date(year, month, d).weekday()] for d in days_list]
+
+    rooms_data = []
     for room in rooms:
-        room_reservations = [r for r in reservations if r.room_id == room.id]
-        status = 'available' if not room_reservations else 'booked'
-        room_statuses.append({'room': room, 'status': status, 'reservations': room_reservations})
-    context = {'rooms': room_statuses, 'start_date': start_date, 'end_date': end_date}
+        day_cells = []
+        for day_num in days_list:
+            d = date(year, month, day_num)
+            info = booked_lookup.get((room.id, day_num))
+            checkout_info = checkout_lookup.get((room.id, day_num))
+            is_checkout = checkout_info is not None and info is None
+            day_cells.append({
+                'day': day_num,
+                'is_past': d < today,
+                'is_booked': info is not None,
+                'is_checkout': is_checkout,
+                'customer_name': (checkout_info if is_checkout else info)['customer_name'] if info or is_checkout else '',
+                'voucher_number': (checkout_info if is_checkout else info)['voucher_number'] if info or is_checkout else '',
+                'notes': (checkout_info if is_checkout else info)['notes'] if info or is_checkout else '',
+                'date_display': d.strftime('%a, %b %d, %Y'),
+            })
+        rooms_data.append({
+            'room_number': room.room_number,
+            'days': day_cells,
+        })
+
+    prev_month = month - 1 if month > 1 else 12
+    prev_year = year if month > 1 else year - 1
+    next_month = month + 1 if month < 12 else 1
+    next_year = year if month < 12 else year + 1
+
+    month_names = ['', 'January', 'February', 'March', 'April', 'May', 'June',
+                   'July', 'August', 'September', 'October', 'November', 'December']
+
+    context = {
+        'year': year,
+        'month': month,
+        'month_name': month_names[month],
+        'prev_month': prev_month,
+        'prev_year': prev_year,
+        'next_month': next_month,
+        'next_year': next_year,
+        'rooms_data': rooms_data,
+        'days_list': days_list,
+        'day_weekdays': day_weekdays,
+        'today_day': today.day if today.month == month and today.year == year else None,
+    }
     return render(request, 'reservations/room_availability.html', context)
+
+
+@login_required
+def api_available_rooms(request):
+    """AJAX endpoint: return available rooms as JSON for given dates."""
+    check_in_str = request.GET.get('check_in', '').strip()
+    check_out_str = request.GET.get('check_out', '').strip()
+    if not check_in_str or not check_out_str:
+        return JsonResponse({'rooms': [], 'count': 0})
+    try:
+        check_in = parse_date_safe(check_in_str)
+        check_out = parse_date_safe(check_out_str)
+    except Exception:
+        return JsonResponse({'rooms': [], 'count': 0})
+    if not check_in or not check_out or check_out <= check_in:
+        return JsonResponse({'rooms': [], 'count': 0})
+    available = get_available_rooms(check_in, check_out)
+    rooms = [{'id': r.room_number, 'label': str(r)} for r in available]
+    return JsonResponse({'rooms': rooms, 'count': len(rooms)})
 
 
 @login_required

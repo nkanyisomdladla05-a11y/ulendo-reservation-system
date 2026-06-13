@@ -580,6 +580,20 @@ tbody tr:last-child td {
     color: var(--primary);
 }
 
+/* Status indicator circles */
+.status-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+    flex-shrink: 0;
+}
+.status-dot-booked    { background: var(--success); }
+.status-dot-checkout  { background: var(--info); }
+.status-dot-cancelled { background: var(--error); }
+
 /* New reservation tabs */
 .nav-tabs {
     display: flex;
@@ -729,4 +743,317 @@ tbody tr:last-child td {
 
 .gap-2 {
     gap: 1rem;
+}
+
+/* Calendar Grid */
+.cal-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    background: var(--white);
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.cal-nav-btn {
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-decoration: none;
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    background: transparent;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.cal-nav-btn:hover {
+    background: var(--primary);
+    color: var(--white);
+}
+
+.cal-today-btn {
+    background: var(--primary);
+    color: var(--white);
+}
+
+.cal-nav-center {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.cal-month-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+    min-width: 200px;
+    text-align: center;
+}
+
+.cal-jump-form {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.cal-jump-select {
+    padding: 0.3rem 0.4rem;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    font-size: 0.85rem;
+}
+
+.cal-jump-year {
+    width: 70px;
+    padding: 0.3rem 0.4rem;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    font-size: 0.85rem;
+}
+
+.cal-jump-date {
+    padding: 0.3rem 0.4rem;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    font-size: 0.85rem;
+    width: 140px;
+    cursor: pointer;
+}
+
+.cal-jump-date::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+}
+
+.cal-card {
+    background: var(--white);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+}
+
+.cal-legend {
+    display: flex;
+    gap: 1.25rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+}
+
+.cal-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.cal-dot {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+}
+
+/* Matrix table — rooms as rows, days as columns */
+.cal-matrix-card {
+    overflow: visible;
+}
+
+.cal-matrix-wrapper {
+    overflow-x: auto;
+    padding: 0.5rem 0;
+}
+
+.cal-matrix {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 600px;
+}
+
+.cal-matrix th,
+.cal-matrix td {
+    border: 1px solid var(--border);
+    text-align: center;
+    font-size: 0.78rem;
+}
+
+.mat-corner {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: linear-gradient(135deg, var(--primary), #D48F2A);
+    color: var(--white);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 0.45rem 0.6rem;
+    min-width: 70px;
+    font-size: 0.8rem;
+}
+
+.mat-day-header {
+    background: linear-gradient(135deg, var(--primary), #D48F2A);
+    color: var(--white);
+    font-weight: 600;
+    padding: 0.2rem 0.1rem;
+    min-width: 28px;
+    vertical-align: middle;
+}
+
+.mat-day-name {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    padding: 0.15rem 0.1rem;
+    border-bottom: none;
+}
+
+.mat-day-num {
+    font-size: 0.78rem;
+    padding: 0.25rem 0.1rem;
+    border-top: none;
+}
+
+.mat-room-header {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: linear-gradient(135deg, var(--primary), #D48F2A);
+    color: var(--white);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 0.35rem 0.6rem;
+    min-width: 70px;
+    font-size: 0.8rem;
+    text-align: left;
+}
+
+.mat-today {
+    box-shadow: inset 0 0 0 2px #fff;
+    position: relative;
+}
+
+.mat-room-label {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--white);
+    font-weight: 600;
+    color: var(--text-primary);
+    padding: 0.35rem 0.6rem;
+    text-align: left;
+    white-space: nowrap;
+    font-size: 0.78rem;
+}
+
+.mat-cell {
+    width: 28px;
+    height: 24px;
+    padding: 0;
+}
+
+.mat-cell-inner {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    cursor: help;
+}
+
+.mat-avail {
+    background: #E8F5E9;
+}
+
+.mat-cell.mat-booked {
+    background: #FF8A80;
+}
+
+.mat-checkout {
+    background: #90CAF9;
+}
+
+.mat-past-booked {
+    background: #FFF3CD;
+}
+
+.mat-past {
+    background: #F5F5F5;
+    opacity: 0.5;
+}
+
+/* Custom tooltip on hover — appears to the right of the cell */
+.mat-cell-inner[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: 50%;
+    left: calc(100% + 12px);
+    transform: translateY(-50%) translateX(-4px);
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    color: #fff;
+    border-radius: 12px;
+    padding: 14px 18px;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    white-space: pre-line;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    z-index: 99999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    min-width: 210px;
+    text-align: left;
+    font-family: inherit;
+    transform-origin: left center;
+}
+
+.mat-cell-inner[data-tooltip]:hover::after {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+}
+
+.mat-cell-inner[data-tooltip]::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: calc(100% + 4px);
+    transform: translateY(-50%);
+    border: 7px solid transparent;
+    border-right-color: #1a1a2e;
+    z-index: 99999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+}
+
+.mat-cell-inner[data-tooltip]:hover::before {
+    opacity: 1;
+}
+
+/* Legend dots */
+.cal-dot-avail       { background: #E8F5E9; border: 2px solid #1E9E5A; }
+.cal-dot-booked      { background: #FF8A80; border: 2px solid #D64545; }
+.cal-dot-checkout    { background: #90CAF9; border: 2px solid #2F80ED; }
+.cal-dot-past-booked { background: #FFF3CD; border: 2px solid #F4A261; }
+.cal-dot-past        { background: #F5F5F5; border: 2px solid #CCC; }
+
+@media (max-width: 768px) {
+    .cal-month-title {
+        font-size: 1.1rem;
+        min-width: auto;
+    }
+    .cal-nav {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .cal-nav-center {
+        flex-direction: column;
+    }
 }

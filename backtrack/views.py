@@ -2,16 +2,21 @@ import logging
 import re
 
 from django.db import transaction
+from django.db.models import IntegerField
+from django.db.models.functions import Cast
 from django.shortcuts import render, redirect, get_object_or_404
+from django.http import JsonResponse
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.http import HttpResponse
 from datetime import date, datetime, timedelta
+import calendar
 from dateutil import parser as date_parser
 
 from .models import BacktrackReservation, BacktrackVoucher
+from rooms.models import Room
 from .forms import BacktrackReservationForm, BacktrackVoucherUploadForm
 from .services import create_backtrack_reservation
 from vouchers.services import extract_voucher_data
@@ -102,7 +107,7 @@ def new_backtrack(request):
                 messages.error(request, 'Check-out date must be after check-in date.')
 
         if dates_valid:
-            form = BacktrackReservationForm(request.POST)
+            form = BacktrackReservationForm(request.POST, check_in_date=check_in, check_out_date=check_out)
         else:
             form = BacktrackReservationForm(request.POST)
 
@@ -129,11 +134,33 @@ def new_backtrack(request):
         return render(request, 'backtrack/new_backtrack.html', context)
 
     else:
-        form = BacktrackReservationForm()
+        check_in_str = request.GET.get('check_in', '').strip()
+        check_out_str = request.GET.get('check_out', '').strip()
+        check_in = None
+        check_out = None
+        if check_in_str:
+            try:
+                check_in = parse_date_safe(check_in_str)
+            except ValueError:
+                check_in = None
+        if check_out_str:
+            try:
+                check_out = parse_date_safe(check_out_str)
+            except ValueError:
+                check_out = None
+
+        if not check_in or not check_out or check_out <= check_in:
+            check_in = date.today()
+            check_out = date.today() + timedelta(days=1)
+            check_in_str = check_in.strftime('%Y/%m/%d')
+            check_out_str = check_out.strftime('%Y/%m/%d')
+
+        form = BacktrackReservationForm(check_in_date=check_in, check_out_date=check_out)
+
         return render(request, 'backtrack/new_backtrack.html', {
             'form': form,
-            'check_in': '',
-            'check_out': '',
+            'check_in': check_in_str,
+            'check_out': check_out_str,
         })
 
 
@@ -142,6 +169,8 @@ def upload_backtrack_voucher(request):
     """Upload voucher for backtrack processing."""
     if request.method == 'POST':
         form = BacktrackVoucherUploadForm(request.POST, request.FILES)
+        manual_check_in = request.POST.get('check_in_date', '').strip()
+        manual_check_out = request.POST.get('check_out_date', '').strip()
         if form.is_valid():
             voucher = form.save()
             try:
@@ -166,7 +195,15 @@ def upload_backtrack_voucher(request):
                     'extracted_data', 'customer_name', 'voucher_number',
                     'check_in_date', 'check_out_date', 'check_in_raw', 'check_out_raw'
                 ])
-                return redirect('backtrack:review_backtrack_voucher', voucher_id=voucher.id)
+                review_url = reverse('backtrack:review_backtrack_voucher', kwargs={'voucher_id': voucher.id})
+                params = []
+                if manual_check_in:
+                    params.append(f'check_in={manual_check_in}')
+                if manual_check_out:
+                    params.append(f'check_out={manual_check_out}')
+                if params:
+                    review_url += '?' + '&'.join(params)
+                return redirect(review_url)
             except Exception as e:
                 voucher.delete()
                 messages.error(request, f'Error processing voucher: {str(e)}')
@@ -206,13 +243,26 @@ def review_backtrack_voucher(request, voucher_id):
                 pass
         voucher.save()
 
-        room_number = request.POST.get('room_number')
         has_valid_dates = (
             isinstance(voucher.check_in_date, date)
             and isinstance(voucher.check_out_date, date)
             and voucher.check_out_date > voucher.check_in_date
         )
-        if room_number and has_valid_dates:
+
+        room_form = BacktrackReservationForm(
+            request.POST,
+            initial={
+                'customer_name': voucher.customer_name,
+                'voucher_number': voucher.voucher_number,
+                'check_in_date': check_in_str,
+                'check_out_date': check_out_str,
+            },
+            check_in_date=voucher.check_in_date if has_valid_dates else None,
+            check_out_date=voucher.check_out_date if has_valid_dates else None,
+        )
+
+        room_number = request.POST.get('room_number')
+        if room_number and has_valid_dates and room_form.is_valid():
             reservation = create_backtrack_reservation(
                 customer_name=voucher.customer_name,
                 voucher_number=voucher.voucher_number or '',
@@ -236,10 +286,43 @@ def review_backtrack_voucher(request, voucher_id):
         elif not has_valid_dates and (check_in_str or check_out_str):
             messages.error(request, 'Please set valid check-in and check-out dates.')
         else:
-            messages.error(request, 'Please select a room and ensure dates are set.')
+            if room_form.errors:
+                for field, errors in room_form.errors.items():
+                    for error in errors:
+                        messages.error(request, error)
+            else:
+                messages.error(request, 'Please select a room and ensure dates are set.')
+
+    gi = request.GET.get('check_in', '').strip()
+    go = request.GET.get('check_out', '').strip()
+    form_check_in = None
+    form_check_out = None
+    if gi and go:
+        try:
+            form_check_in = parse_date_safe(gi)
+            form_check_out = parse_date_safe(go)
+        except ValueError:
+            pass
+    if not form_check_in or not form_check_out:
+        form_check_in = voucher.check_in_date if isinstance(voucher.check_in_date, date) else None
+        form_check_out = voucher.check_out_date if isinstance(voucher.check_out_date, date) else None
+
+    room_form = BacktrackReservationForm(
+        initial={
+            'customer_name': voucher.customer_name,
+            'voucher_number': voucher.voucher_number,
+            'check_in_date': gi or (voucher.extracted_data.get('check_in_raw', '') if voucher.extracted_data else ''),
+            'check_out_date': go or (voucher.extracted_data.get('check_out_raw', '') if voucher.extracted_data else ''),
+        },
+        check_in_date=form_check_in,
+        check_out_date=form_check_out,
+    )
 
     context = {
         'voucher': voucher,
+        'room_form': room_form,
+        'check_in': gi or (form_check_in.strftime('%Y/%m/%d') if form_check_in else ''),
+        'check_out': go or (form_check_out.strftime('%Y/%m/%d') if form_check_out else ''),
     }
 
     return render(request, 'backtrack/review_backtrack.html', context)
@@ -371,6 +454,21 @@ def backtrack_report(request):
 
 
 @login_required
+def edit_backtrack_reservation(request, pk):
+    """Edit an existing backtrack reservation."""
+    reservation = get_object_or_404(BacktrackReservation, pk=pk)
+    if request.method == 'POST':
+        form = BacktrackReservationForm(request.POST, instance=reservation)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Backtrack reservation for {reservation.customer_name} has been updated.')
+            return redirect('backtrack:backtrack_list')
+    else:
+        form = BacktrackReservationForm(instance=reservation)
+    return render(request, 'backtrack/edit_backtrack.html', {'form': form, 'reservation': reservation})
+
+
+@login_required
 def delete_backtrack_reservation(request, pk):
     """Delete a backtrack reservation."""
     reservation = get_object_or_404(BacktrackReservation, pk=pk)
@@ -388,6 +486,26 @@ def delete_backtrack_from_dashboard(request, pk):
         reservation.delete()
         messages.success(request, f'Backtrack reservation for {reservation.customer_name} has been deleted.')
     return redirect('backtrack:dashboard')
+
+
+@login_required
+def api_available_backtrack_rooms(request):
+    """AJAX endpoint: return available rooms as JSON for given dates (backtrack system)."""
+    from .forms import get_available_backtrack_rooms
+    check_in_str = request.GET.get('check_in', '').strip()
+    check_out_str = request.GET.get('check_out', '').strip()
+    if not check_in_str or not check_out_str:
+        return JsonResponse({'rooms': [], 'count': 0})
+    try:
+        check_in = parse_date_safe(check_in_str)
+        check_out = parse_date_safe(check_out_str)
+    except Exception:
+        return JsonResponse({'rooms': [], 'count': 0})
+    if not check_in or not check_out or check_out <= check_in:
+        return JsonResponse({'rooms': [], 'count': 0})
+    available = get_available_backtrack_rooms(check_in, check_out)
+    rooms = [{'id': r.room_number, 'label': str(r)} for r in available]
+    return JsonResponse({'rooms': rooms, 'count': len(rooms)})
 
 
 def generate_backtrack_pdf_report(date_label, check_ins, check_outs, total, mode):
@@ -634,3 +752,104 @@ def generate_backtrack_excel_report(date_label, check_ins, check_outs, total, mo
     response['Content-Disposition'] = f'attachment; filename="backtrack_report_{date_label.replace("/", "-")}.xlsx"'
     wb.save(response)
     return response
+
+
+@login_required
+def backtrack_calendar(request):
+    """Room-day matrix showing BacktrackReservation availability per day."""
+    today = date.today()
+    year_str = request.GET.get('year', '')
+    month_str = request.GET.get('month', '')
+    try:
+        year = int(year_str) if year_str else today.year
+        month = int(month_str) if month_str else today.month
+        if month < 1 or month > 12:
+            raise ValueError
+    except ValueError:
+        year = today.year
+        month = today.month
+
+    num_days = calendar.monthrange(year, month)[1]
+    first_day = date(year, month, 1)
+    last_day = date(year, month, num_days)
+
+    rooms = Room.objects.filter(is_active=True).annotate(
+        room_number_int=Cast('room_number', IntegerField())
+    ).order_by('room_number_int')
+
+    reservations = BacktrackReservation.objects.filter(
+        status='confirmed',
+        check_in_date__lt=last_day + timedelta(days=1),
+        check_out_date__gt=first_day,
+    )
+
+    # Build lookups: (room_number_str, day_num) -> info
+    booked_lookup = {}
+    checkout_lookup = {}
+    for res in reservations:
+        current = res.check_in_date
+        while current < res.check_out_date:
+            if first_day <= current <= last_day:
+                booked_lookup[(res.room_number, current.day)] = {
+                    'customer_name': res.customer_name,
+                    'voucher_number': res.voucher_number or '',
+                    'notes': res.notes or '',
+                }
+            current += timedelta(days=1)
+        checkout_day = res.check_out_date
+        if first_day <= checkout_day <= last_day:
+            checkout_lookup[(res.room_number, checkout_day.day)] = {
+                'customer_name': res.customer_name,
+                'voucher_number': res.voucher_number or '',
+                'notes': res.notes or '',
+            }
+
+    days_list = list(range(1, num_days + 1))
+    weekday_abbr = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    day_weekdays = [weekday_abbr[date(year, month, d).weekday()] for d in days_list]
+
+    rooms_data = []
+    for room in rooms:
+        day_cells = []
+        for day_num in days_list:
+            d = date(year, month, day_num)
+            info = booked_lookup.get((str(room.room_number), day_num))
+            checkout_info = checkout_lookup.get((str(room.room_number), day_num))
+            is_checkout = checkout_info is not None and info is None
+            day_cells.append({
+                'day': day_num,
+                'is_past': d < today,
+                'is_booked': info is not None,
+                'is_checkout': is_checkout,
+                'customer_name': (checkout_info if is_checkout else info)['customer_name'] if info or is_checkout else '',
+                'voucher_number': (checkout_info if is_checkout else info)['voucher_number'] if info or is_checkout else '',
+                'notes': (checkout_info if is_checkout else info)['notes'] if info or is_checkout else '',
+                'date_display': d.strftime('%a, %b %d, %Y'),
+            })
+        rooms_data.append({
+            'room_number': room.room_number,
+            'days': day_cells,
+        })
+
+    prev_month = month - 1 if month > 1 else 12
+    prev_year = year if month > 1 else year - 1
+    next_month = month + 1 if month < 12 else 1
+    next_year = year if month < 12 else year + 1
+
+    month_names = ['', 'January', 'February', 'March', 'April', 'May', 'June',
+                   'July', 'August', 'September', 'October', 'November', 'December']
+
+    context = {
+        'year': year,
+        'month': month,
+        'month_name': month_names[month],
+        'prev_month': prev_month,
+        'prev_year': prev_year,
+        'next_month': next_month,
+        'next_year': next_year,
+        'rooms_data': rooms_data,
+        'days_list': days_list,
+        'day_weekdays': day_weekdays,
+        'today_day': today.day if today.month == month and today.year == year else None,
+    }
+    return render(request, 'backtrack/backtrack_calendar.html', context)

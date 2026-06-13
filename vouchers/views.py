@@ -54,6 +54,8 @@ def upload_voucher(request):
     """Upload voucher and extract data using OCR."""
     if request.method == 'POST':
         form = VoucherUploadForm(request.POST, request.FILES)
+        manual_check_in = request.POST.get('check_in_date', '').strip()
+        manual_check_out = request.POST.get('check_out_date', '').strip()
         if form.is_valid():
             voucher = form.save()
             try:
@@ -76,7 +78,15 @@ def upload_voucher(request):
                     'extracted_data', 'customer_name', 'voucher_number',
                     'check_in_date', 'check_out_date'
                 ])
-                return redirect('vouchers:review_voucher', voucher_id=voucher.id)
+                review_url = reverse('vouchers:review_voucher', kwargs={'voucher_id': voucher.id})
+                params = []
+                if manual_check_in:
+                    params.append(f'check_in={manual_check_in}')
+                if manual_check_out:
+                    params.append(f'check_out={manual_check_out}')
+                if params:
+                    review_url += '?' + '&'.join(params)
+                return redirect(review_url)
             except Exception as e:
                 voucher.delete()
                 messages.error(request, f'Error processing voucher: {str(e)}')
@@ -184,11 +194,25 @@ def review_voucher(request, voucher_id):
         else:
             messages.error(request, 'Please select a room and ensure dates are set.')
 
-    # Build ReservationForm with voucher dates — identical to manual booking
-    if voucher.check_in_date and voucher.check_out_date and voucher.check_out_date > voucher.check_in_date:
+    # Build ReservationForm — prefer GET params (from date change), fallback to voucher dates
+    gi = request.GET.get('check_in', '').strip()
+    go = request.GET.get('check_out', '').strip()
+    form_check_in = None
+    form_check_out = None
+    if gi and go:
+        try:
+            form_check_in = parse_date_safe(gi)
+            form_check_out = parse_date_safe(go)
+        except ValueError:
+            pass
+    if not form_check_in or not form_check_out:
+        form_check_in = voucher.check_in_date
+        form_check_out = voucher.check_out_date
+
+    if form_check_in and form_check_out and form_check_out > form_check_in:
         form = ReservationForm(
-            check_in_date=voucher.check_in_date,
-            check_out_date=voucher.check_out_date,
+            check_in_date=form_check_in,
+            check_out_date=form_check_out,
         )
         available_rooms_count = form.fields['room'].queryset.count()
     else:
@@ -199,6 +223,8 @@ def review_voucher(request, voucher_id):
         'voucher': voucher,
         'form': form,
         'available_rooms_count': available_rooms_count,
+        'check_in': gi or (form_check_in.strftime('%Y/%m/%d') if form_check_in else ''),
+        'check_out': go or (form_check_out.strftime('%Y/%m/%d') if form_check_out else ''),
     }
 
     return render(request, 'vouchers/review_voucher.html', context)

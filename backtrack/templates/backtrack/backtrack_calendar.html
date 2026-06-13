@@ -13,7 +13,7 @@
         <input type="date" class="cal-jump-date" value="" onchange="var d=this.value.split('-');if(d.length==3){window.location='?year='+d[0]+'&month='+parseInt(d[1]);}">
     </div>
     <a href="?year={% now 'Y' %}&month={% now 'n' %}" class="cal-nav-btn cal-today-btn">Today</a>
-    <a href="{% url 'reservations:new_reservation' %}" class="btn btn-primary">+ Reservation</a>
+    <a href="{% url 'backtrack:new_backtrack' %}" class="btn btn-primary">+ Backtrack Reservation</a>
     <a href="?year={{ next_year }}&month={{ next_month }}" class="cal-nav-btn">{{ month_name|slice:":3" }} &rarr;</a>
 </div>
 

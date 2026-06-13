@@ -49,27 +49,32 @@
                         <th>Check-in</th>
                         <th>Check-out</th>
                         <th>Voucher</th>
-                        <th>Status</th>
+                        <th>Notes</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
+                    {% now "Ymd" as today %}
                     {% for reservation in page_obj %}
                     <tr>
-                        <td><strong>{{ reservation.customer_name }}</strong></td>
+                        <td>
+                            {% if reservation.status == 'cancelled' %}
+                            <span class="status-dot status-dot-cancelled"></span>
+                            {% elif reservation.check_out_date|date:"Ymd" < today %}
+                            <span class="status-dot status-dot-checkout"></span>
+                            {% else %}
+                            <span class="status-dot status-dot-booked"></span>
+                            {% endif %}
+                            <strong>{{ reservation.customer_name }}</strong>
+                        </td>
                         <td>Room {{ reservation.room.room_number }}</td>
                         <td>{{ reservation.check_in_date|date:"Y/m/d" }}</td>
                         <td>{{ reservation.check_out_date|date:"Y/m/d" }}</td>
                         <td>{{ reservation.voucher_number|default:"—" }}</td>
-                        <td>
-                            {% if reservation.status == 'confirmed' %}
-                            <span class="badge badge-success">Confirmed</span>
-                            {% else %}
-                            <span class="badge badge-error">Cancelled</span>
-                            {% endif %}
-                        </td>
+                        <td style="max-width:200px;font-size:0.8rem;color:var(--text-secondary);white-space:normal;word-break:break-word;">{{ reservation.notes|default:"—"|truncatewords:15 }}</td>
                         <td>
                             <div class="d-flex gap-1">
+                                <a href="{% url 'reservations:edit_reservation' reservation.pk %}" class="btn btn-sm btn-primary">Edit</a>
                                 {% if reservation.status == 'confirmed' %}
                                 <a href="{% url 'reservations:cancel_reservation' reservation.pk %}" class="btn btn-sm btn-danger">Cancel</a>
                                 {% endif %}
@@ -78,7 +83,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                        <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
                             No reservations found.
                         </td>
                     </tr>

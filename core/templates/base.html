@@ -28,7 +28,7 @@
                 </a>
                 <a href="{% url 'reservations:room_availability' %}" class="nav-item {% if request.resolver_match.url_name == 'room_availability' %}active{% endif %}">
                     <span class="nav-icon">🏨</span>
-                    <span>Room Availability</span>
+                    <span>Booking Calendar</span>
                 </a>
                 <a href="{% url 'reservations:reservation_list' %}" class="nav-item {% if request.resolver_match.url_name == 'reservation_list' %}active{% endif %}">
                     <span class="nav-icon">📋</span>
@@ -84,6 +84,9 @@
             flatpickr('.date-picker', {
                 dateFormat: 'Y/m/d',
                 allowInput: true,
+                onChange: function(selectedDates, dateStr, instance) {
+                    instance.input.dispatchEvent(new Event('change', { bubbles: true }));
+                },
             });
         });
     </script>
