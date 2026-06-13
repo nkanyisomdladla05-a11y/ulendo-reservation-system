@@ -84,13 +84,10 @@
                         <td>
                             <div class="d-flex gap-1">
                                 <a href="{% url 'reservations:edit_reservation' reservation.pk %}" class="btn btn-sm btn-primary">Edit</a>
-                                {% if reservation.status == 'confirmed' %}
-                                    {% now "Ymd" as today %}
-                                    {% if reservation.check_out_date|date:"Ymd" < today %}
-                                    <a href="{% url 'reservations:delete_reservation' reservation.pk %}" class="btn btn-sm btn-danger">Delete</a>
-                                    {% else %}
-                                    <a href="{% url 'reservations:cancel_reservation' reservation.pk %}" class="btn btn-sm btn-danger">Cancel</a>
-                                    {% endif %}
+                                {% if reservation.status == 'cancelled' or reservation.check_out_date|date:"Ymd" < today %}
+                                <a href="{% url 'reservations:delete_reservation' reservation.pk %}" class="btn btn-sm btn-danger">Delete</a>
+                                {% else %}
+                                <a href="{% url 'reservations:cancel_reservation' reservation.pk %}" class="btn btn-sm btn-danger">Cancel</a>
                                 {% endif %}
                             </div>
                         </td>
