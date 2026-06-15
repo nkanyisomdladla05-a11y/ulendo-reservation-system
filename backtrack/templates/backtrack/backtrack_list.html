@@ -84,6 +84,7 @@
                         <td>
                             <div class="d-flex gap-1">
                                 <a href="{% url 'backtrack:edit_reservation' res.pk %}" class="btn btn-sm btn-primary">Edit</a>
+                                <a href="{% url 'backtrack:backtrack_uploads' res.pk %}" class="btn btn-sm btn-info">Uploads</a>
                                 <form method="post" action="{% url 'backtrack:delete_reservation' res.pk %}" style="display:inline;" onsubmit="return confirm('Delete this backtrack record?');">
                                     {% csrf_token %}
                                     <button type="submit" class="btn btn-sm btn-danger">Delete</button>

@@ -8,6 +8,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.http import HttpResponse
@@ -867,3 +868,81 @@ def backtrack_calendar(request):
         'today_day': today.day if today.month == month and today.year == year else None,
     }
     return render(request, 'backtrack/backtrack_calendar.html', context)
+
+
+@login_required
+def backtrack_vouchers_json(request, pk):
+    """Return JSON list of vouchers for a backtrack reservation."""
+    reservation = get_object_or_404(BacktrackReservation, pk=pk)
+    vouchers = reservation.vouchers.all()
+    data = [{
+        'id': v.id,
+        'file_url': v.voucher_file.url,
+        'file_name': v.voucher_file.name.split('/')[-1],
+        'uploaded_at': v.created_at.strftime('%Y/%m/%d %H:%M'),
+        'voucher_number': v.voucher_number or '',
+        'customer_name': v.customer_name or '',
+    } for v in vouchers]
+    return JsonResponse({'vouchers': data})
+
+
+@login_required
+@require_POST
+def upload_backtrack_reservation_voucher(request, pk):
+    """Upload and link a voucher to a backtrack reservation."""
+    reservation = get_object_or_404(BacktrackReservation, pk=pk)
+    file = request.FILES.get('voucher_file')
+    if not file:
+        return JsonResponse({'success': False, 'error': 'No file provided'}, status=400)
+    voucher = BacktrackVoucher(voucher_file=file)
+    voucher.reservation = reservation
+    voucher.is_confirmed = True
+    voucher.save()
+    return JsonResponse({
+        'success': True,
+        'voucher': {
+            'id': voucher.id,
+            'file_url': voucher.voucher_file.url,
+            'file_name': voucher.voucher_file.name.split('/')[-1],
+            'uploaded_at': voucher.created_at.strftime('%Y/%m/%d %H:%M'),
+        }
+    })
+
+
+@login_required
+@require_POST
+def delete_backtrack_reservation_voucher(request, pk, voucher_id):
+    """Delete a voucher linked to a backtrack reservation."""
+    voucher = get_object_or_404(BacktrackVoucher, pk=voucher_id, reservation_id=pk)
+    voucher.voucher_file.delete(save=False)
+    voucher.delete()
+    return JsonResponse({'success': True})
+
+
+@login_required
+def backtrack_uploads_page(request, pk):
+    """Page showing all vouchers for a backtrack reservation with upload/delete."""
+    reservation = get_object_or_404(BacktrackReservation.objects.prefetch_related('vouchers'), pk=pk)
+    vouchers = reservation.vouchers.all()
+
+    if request.method == 'POST':
+        if 'delete_voucher' in request.POST:
+            voucher_id = request.POST.get('voucher_id')
+            voucher = get_object_or_404(BacktrackVoucher, pk=voucher_id, reservation_id=pk)
+            voucher.voucher_file.delete(save=False)
+            voucher.delete()
+            messages.success(request, 'Voucher deleted.')
+            return redirect('backtrack:backtrack_uploads', pk=pk)
+
+        if 'voucher_file' in request.FILES:
+            voucher = BacktrackVoucher(voucher_file=request.FILES['voucher_file'])
+            voucher.reservation = reservation
+            voucher.is_confirmed = True
+            voucher.save()
+            messages.success(request, 'Voucher uploaded.')
+            return redirect('backtrack:backtrack_uploads', pk=pk)
+
+    return render(request, 'backtrack/backtrack_uploads.html', {
+        'reservation': reservation,
+        'vouchers': vouchers,
+    })

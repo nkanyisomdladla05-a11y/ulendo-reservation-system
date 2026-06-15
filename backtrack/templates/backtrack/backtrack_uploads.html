@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block title %}Voucher Uploads - Ulendo Reservation System{% endblock %}
+
+{% block page_title %}Voucher Uploads{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">{{ reservation.customer_name }} - Room {{ reservation.room_number }}</h3>
+    </div>
+    <div class="card-body">
+        <p><strong>Check-in:</strong> {{ reservation.check_in_date|date:"Y/m/d" }} &nbsp; <strong>Check-out:</strong> {{ reservation.check_out_date|date:"Y/m/d" }}</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Uploaded Vouchers</h3>
+    </div>
+    <div class="card-body">
+        {% if vouchers %}
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>File</th>
+                        <th>Uploaded At</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in vouchers %}
+                    <tr>
+                        <td>
+                            <a href="{{ v.voucher_file.url }}" target="_blank" title="View Voucher" class="voucher-eye-link">👁</a>
+                            {{ v.voucher_file.name|cut:"backtrack_vouchers/" }}
+                        </td>
+                        <td>{{ v.created_at|date:"Y/m/d H:i" }}</td>
+                        <td>
+                            <form method="post" action="{% url 'backtrack:backtrack_uploads' reservation.pk %}" style="display:inline;" onsubmit="return confirm('Delete this voucher?');">
+                                {% csrf_token %}
+                                <input type="hidden" name="delete_voucher" value="1">
+                                <input type="hidden" name="voucher_id" value="{{ v.id }}">
+                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color:var(--text-secondary); text-align:center; padding:1rem;">No vouchers uploaded yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Upload New Voucher</h3>
+    </div>
+    <div class="card-body">
+        <form method="post" enctype="multipart/form-data" action="{% url 'backtrack:backtrack_uploads' reservation.pk %}">
+            {% csrf_token %}
+            <div class="form-group">
+                <label class="form-label">Voucher File</label>
+                <input type="file" name="voucher_file" class="form-control" accept="image/*,application/pdf,.pdf" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Upload</button>
+        </form>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a href="{% url 'backtrack:backtrack_list' %}" class="btn btn-secondary">&larr; Back to Backtrack Records</a>
+</div>
+{% endblock %}

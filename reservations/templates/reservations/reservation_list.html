@@ -84,6 +84,7 @@
                         <td>
                             <div class="d-flex gap-1">
                                 <a href="{% url 'reservations:edit_reservation' reservation.pk %}" class="btn btn-sm btn-primary">Edit</a>
+                                <a href="{% url 'reservations:reservation_uploads' reservation.pk %}" class="btn btn-sm btn-info">Uploads</a>
                                 {% if reservation.status == 'cancelled' or reservation.check_out_date|date:"Ymd" < today %}
                                 <a href="{% url 'reservations:delete_reservation' reservation.pk %}" class="btn btn-sm btn-danger">Delete</a>
                                 {% else %}

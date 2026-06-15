@@ -13,4 +13,8 @@ urlpatterns = [
     path('<int:pk>/edit/', views.edit_reservation, name='edit_reservation'),
     path('<int:pk>/cancel/', views.cancel_reservation, name='cancel_reservation'),
     path('<int:pk>/delete/', views.delete_reservation, name='delete_reservation'),
+    path('<int:pk>/vouchers/', views.reservation_vouchers_json, name='reservation_vouchers'),
+    path('<int:pk>/vouchers/upload/', views.upload_reservation_voucher, name='upload_reservation_voucher'),
+    path('<int:pk>/vouchers/<int:voucher_id>/delete/', views.delete_reservation_voucher, name='delete_reservation_voucher'),
+    path('<int:pk>/uploads/', views.reservation_uploads_page, name='reservation_uploads'),
 ]

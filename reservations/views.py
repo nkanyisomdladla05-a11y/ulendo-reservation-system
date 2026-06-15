@@ -3,6 +3,7 @@ import calendar
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import IntegerField
@@ -13,6 +14,7 @@ from .models import Reservation
 from .forms import ReservationForm
 from .services import get_available_rooms, create_confirmed_reservation
 from rooms.models import Room
+from vouchers.models import Voucher
 
 
 def parse_date_safe(date_str):
@@ -476,3 +478,78 @@ def delete_reservation(request, pk):
         messages.success(request, f'Past reservation for {customer} has been deleted.')
         return redirect('reservations:reservation_list')
     return render(request, 'reservations/delete_reservation.html', {'reservation': reservation})
+
+@login_required
+def reservation_vouchers_json(request, pk):
+    """Return JSON list of vouchers for a reservation."""
+    reservation = get_object_or_404(Reservation, pk=pk)
+    vouchers = reservation.vouchers.all()
+    data = [{
+        'id': v.id,
+        'file_url': v.voucher_file.url,
+        'file_name': v.voucher_file.name.split('/')[-1],
+        'uploaded_at': v.created_at.strftime('%Y/%m/%d %H:%M'),
+        'voucher_number': v.voucher_number or '',
+        'customer_name': v.customer_name or '',
+    } for v in vouchers]
+    return JsonResponse({'vouchers': data})
+
+@login_required
+@require_POST
+def upload_reservation_voucher(request, pk):
+    """Upload and link a voucher to a reservation."""
+    reservation = get_object_or_404(Reservation, pk=pk)
+    file = request.FILES.get('voucher_file')
+    if not file:
+        return JsonResponse({'success': False, 'error': 'No file provided'}, status=400)
+    voucher = Voucher(voucher_file=file)
+    voucher.reservation = reservation
+    voucher.is_confirmed = True
+    voucher.save()
+    return JsonResponse({
+        'success': True,
+        'voucher': {
+            'id': voucher.id,
+            'file_url': voucher.voucher_file.url,
+            'file_name': voucher.voucher_file.name.split('/')[-1],
+            'uploaded_at': voucher.created_at.strftime('%Y/%m/%d %H:%M'),
+        }
+    })
+
+@login_required
+@require_POST
+def delete_reservation_voucher(request, pk, voucher_id):
+    """Delete a voucher linked to a reservation."""
+    voucher = get_object_or_404(Voucher, pk=voucher_id, reservation_id=pk)
+    voucher.voucher_file.delete(save=False)
+    voucher.delete()
+    return JsonResponse({'success': True})
+
+
+@login_required
+def reservation_uploads_page(request, pk):
+    """Page showing all vouchers for a reservation with upload/delete."""
+    reservation = get_object_or_404(Reservation.objects.prefetch_related('vouchers'), pk=pk)
+    vouchers = reservation.vouchers.all()
+
+    if request.method == 'POST':
+        if 'delete_voucher' in request.POST:
+            voucher_id = request.POST.get('voucher_id')
+            voucher = get_object_or_404(Voucher, pk=voucher_id, reservation_id=pk)
+            voucher.voucher_file.delete(save=False)
+            voucher.delete()
+            messages.success(request, 'Voucher deleted.')
+            return redirect('reservations:reservation_uploads', pk=pk)
+
+        if 'voucher_file' in request.FILES:
+            voucher = Voucher(voucher_file=request.FILES['voucher_file'])
+            voucher.reservation = reservation
+            voucher.is_confirmed = True
+            voucher.save()
+            messages.success(request, 'Voucher uploaded.')
+            return redirect('reservations:reservation_uploads', pk=pk)
+
+    return render(request, 'reservations/reservation_uploads.html', {
+        'reservation': reservation,
+        'vouchers': vouchers,
+    })

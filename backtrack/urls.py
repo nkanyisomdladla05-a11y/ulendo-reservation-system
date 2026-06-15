@@ -15,4 +15,8 @@ urlpatterns = [
     path('<int:pk>/edit/', views.edit_backtrack_reservation, name='edit_reservation'),
     path('<int:pk>/delete/', views.delete_backtrack_reservation, name='delete_reservation'),
     path('<int:pk>/delete-dashboard/', views.delete_backtrack_from_dashboard, name='delete_from_dashboard'),
+    path('<int:pk>/vouchers/', views.backtrack_vouchers_json, name='backtrack_vouchers'),
+    path('<int:pk>/vouchers/upload/', views.upload_backtrack_reservation_voucher, name='upload_backtrack_voucher'),
+    path('<int:pk>/vouchers/<int:voucher_id>/delete/', views.delete_backtrack_reservation_voucher, name='delete_backtrack_voucher'),
+    path('<int:pk>/uploads/', views.backtrack_uploads_page, name='backtrack_uploads'),
 ]
